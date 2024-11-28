@@ -1,0 +1,17 @@
+menu "I2C Configuration"
+
+    config I2C_SCL
+        int "SCL GPIO Num"
+        default 23 if IDF_TARGET_ESP32
+        default 4
+        help
+            GPIO number for I2C Master clock line.
+
+    config I2C_SDA
+        int "SDA GPIO Num"
+        default 22 if IDF_TARGET_ESP32
+        default 5
+        help
+            GPIO number for I2C Master data line.
+
+endmenu

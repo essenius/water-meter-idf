@@ -30,3 +30,25 @@
 *.exe
 *.out
 *.app
+
+# build artifacts
+
+*[Bb]uild/
+managed_components/
+
+*.old
+*.bak
+
+# secrets
+secrets.*
+*.secrets
+*.key
+*.crt
+
+vscode/**/*
+
+# Include specific files
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json

@@ -1,0 +1,9 @@
+{
+    "sonarlint.rules": {
+        "cpp:S5945": {
+            "level": "off",
+            "rationale": "Using char[] instead of std::string to prevent fragmenting the heap"
+        }
+    },
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json"
+}
