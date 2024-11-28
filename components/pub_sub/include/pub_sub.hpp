@@ -23,6 +23,7 @@
 #include <functional>
 #include <memory>
 #include <format>
+#include <atomic>
 
 namespace pubsub {
 
@@ -93,15 +94,31 @@ namespace pubsub {
         void dump_subscribers(const char* tag = "dump") const;
 
     private:
+        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, SubscriberCallback callback);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
         bool doesCallbackExist(const SubscriberMap& subscriberMap, SubscriberCallback callback) const;
+        void removeMapsToClear(std::vector<SubscriberMap *> &mapsToClear);
+
+        template <typename Func>
+        bool doInMutex(Func&& operation, const char* context, const char* detail) {
+            ESP_LOGI(context, "Waiting to take mutex for %s", detail);
+
+            if (xSemaphoreTake(m_mutex, MutexTimeout + 2) != pdTRUE) {
+                throwRuntimeError(context, std::string("Failed to take semaphore for " + std::string(detail)));
+            }
+            bool result = operation();
+            if (xSemaphoreGive(m_mutex) != pdTRUE) {
+                throwRuntimeError(context, std::string("Failed to give semaphore for " + std::string(detail)));
+            }
+            return result;
+        }
 
 #ifdef ESP_PLATFORM
         [[noreturn]]
 #endif
         static void eventLoop(void* pubsubInstance);
         void processMessage(const Message &msg) const;
-        void removeSubscriber(SubscriberCallback callback, SubscriberMap &subscriberMap);
+        void removeSubscriber(SubscriberCallback callback, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
         void throwRuntimeError(const std::string& context, const std::string& detail) const;
 
         std::vector<SubscriberMap> m_subscribers;
@@ -112,9 +129,8 @@ namespace pubsub {
         std::atomic<bool> m_terminateFlag;
 
         static const char* TAG;
+        static const int MutexTimeout = pdMS_TO_TICKS(1000);
 
-        //mutable std::mutex mtx;
-        //mutable std::mutex processing_mutex;
         std::condition_variable m_conditionVariable;
         bool m_processing;
     };

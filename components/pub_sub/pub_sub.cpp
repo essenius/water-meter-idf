@@ -15,7 +15,6 @@
 #include <sstream>
 
 namespace pubsub {
-    constexpr int MutexTimeout = pdMS_TO_TICKS(1000);
 
     const char* PubSub::TAG = "PubSub";
 
@@ -56,63 +55,77 @@ namespace pubsub {
         char buffer[100];
         constexpr const char* TAG = "publish";
         std::visit(MessageVisitor(buffer), message);
-        ESP_LOGI(TAG, "Waiting to publish topic %d, message '%s'", msg.topic, buffer);
-        if (xSemaphoreTake(m_mutex, MutexTimeout+1) == pdTRUE) {
-            ESP_LOGI(TAG, "Publishing topic %d, message '%s'", msg.topic, buffer);
 
-            if (xQueueSend(m_message_queue, &msg, portMAX_DELAY) != pdPASS) {
-                throwRuntimeError("publish", "Failed to publish topic " + std::to_string(msg.topic) + " message: " + buffer);
-            }
-            m_processing = true;
-           xSemaphoreGive(m_mutex);
-        } else {
-            throwRuntimeError("publish", "Failed to grab semaphore to publish topic " + std::to_string(msg.topic) + " message: " + buffer);
-        }
+        doInMutex(
+            [this, msg, buffer]() -> bool {
+                ESP_LOGI(TAG, "Publishing topic %d, message '%s'", msg.topic, buffer);
+                if (xQueueSend(m_message_queue, &msg, portMAX_DELAY) != pdPASS) {
+                    throwRuntimeError("PublishTopic", "Failed to publish topic " + std::to_string(msg.topic) + " message: " + buffer);
+                }
+                m_processing = true;
+                return true;
+            }, 
+            "PublishTopic",
+            std::to_string(topic).c_str()
+        );
         ESP_LOGI(TAG, "Publish topic %d, message '%s' done", msg.topic, buffer);
     }
 
+    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, SubscriberCallback callback) {
+        // note: must be called with the mutex taken
+        if (subscriberMap.topic != topic) return false;
+        if (doesCallbackExist(subscriberMap, callback)) {
+            ESP_LOGI(TAG, "Subscriber already exists for %d", topic);
+            return true; // do not add it again
+        }
+        ESP_LOGI(TAG, "Adding subscriber to %d", topic);
+
+        return doInMutex(
+            [&subscriberMap, &callback]() {
+                subscriberMap.subscribers.push_back(callback);
+                return true;
+            }, 
+            "addSubscriberToExistingTopic", 
+            std::to_string(topic).c_str()
+        );
+        return true;        
+    }
 
     void PubSub::subscribe(uint16_t topic, SubscriberCallback callback) {
         constexpr const char* TAG = "subscribe";
 
-        ESP_LOGI(TAG, "Waiting to subscribe to %d", topic);
-        if (xSemaphoreTake(m_mutex, MutexTimeout+2) == pdTRUE) {
-            ESP_LOGI(TAG, "Subscribing to %d", topic);
-            for (auto& subscriberMap: m_subscribers) {
-                if (subscriberMap.topic == topic) {
-                    if (doesCallbackExist(subscriberMap, callback)) {
-                       ESP_LOGI(TAG, "Subscriber already exists for %d", topic);
-                       xSemaphoreGive(m_mutex);
-                        return; // do not add it again
-                    }
-                    ESP_LOGI(TAG, "Adding subscriber to %d", topic);
-                    subscriberMap.subscribers.push_back(callback);
-                    xSemaphoreGive(m_mutex);
-                    return;
-                }
-            }
-            // New topic, add to the map
-            ESP_LOGI(TAG, "Adding subscriber map for %d", topic);
-            SubscriberMap subscriber;
-            subscriber.topic = topic;
-            subscriber.subscribers.push_back(callback);
-            m_subscribers.push_back(subscriber);
-            xSemaphoreGive(m_mutex);
-        } else {
-            throwRuntimeError("subscribe", "Failed take semaphore to subscribe to  " + std::to_string(topic));
+        ESP_LOGI(TAG, "Subscribing to %d", topic);
+        for (auto& subscriberMap: m_subscribers) {
+            if (addSubscriberToExistingTopic(subscriberMap, topic, callback)) return;
         }
+        // New topic, add to the map
+        ESP_LOGI(TAG, "Adding subscriber map for %d", topic);
+        SubscriberMap subscriber;
+        subscriber.topic = topic;
+        doInMutex(
+            [this, &subscriber, &callback]() {
+                subscriber.subscribers.push_back(callback);
+                m_subscribers.push_back(subscriber);
+                return true;
+            }, 
+            "addSubscriberToNewTopic", 
+            std::to_string(topic).c_str()
+        );
+        subscriber.subscribers.push_back(callback);
+        m_subscribers.push_back(subscriber);
+        xSemaphoreGive(m_mutex);
 
     }
 
     // make sure the mutex is taken before this runs
-    void PubSub::removeSubscriber(SubscriberCallback callback, SubscriberMap& subscriberMap) {
+    void PubSub::removeSubscriber(SubscriberCallback callback, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
         dump_subscribers("removeSubscriber before");
 
         constexpr const char* TAG = "removeSubscriber";
         const uint16_t topic = subscriberMap.topic;
         ESP_LOGI(TAG, "Removing subscriber for %d, %p", topic, static_cast<void*>(callback.get()));
 
-            // Manually iterate and remove subscribers that reference the specified callback
+        // Manually iterate and remove subscribers that reference the specified callback
         for (auto it = subscriberMap.subscribers.begin(); it != subscriberMap.subscribers.end(); ++it ) {
             ESP_LOGI(TAG, "Comparing %p to %p", static_cast<void*>(it->get()), static_cast<void*>(callback.get()));
             if (static_cast<void*>(it->get()) == static_cast<void*>(callback.get())) {
@@ -120,6 +133,10 @@ namespace pubsub {
                 it = subscriberMap.subscribers.erase(it);
                 break;
             }
+        }
+
+        if (subscriberMap.subscribers.empty()) {
+            mapsToClear.push_back(&subscriberMap);
         }
         // Log the size of the subscribers vector after removal
         ESP_LOGI(TAG, "Size of subscribers after removal: %zu", subscriberMap.subscribers.size());
@@ -134,24 +151,7 @@ namespace pubsub {
         for (;;);
     }
 
-    void PubSub::unsubscribe(uint16_t topic, SubscriberCallback callback) {
-    ESP_LOGI(TAG, "Waiting to unsubscribe(%d, %p)", topic, static_cast<void*>(callback.get()));
-    if (xSemaphoreTake(m_mutex, MutexTimeout) == pdTRUE) {
-        ESP_LOGI(TAG, "Unsubscribing %d, %p", topic, static_cast<void*>(callback.get()));
-
-        std::vector<SubscriberMap*> mapsToClear;
-
-        // run through the subscribers and remove the callback for each
-        for (auto& subscriberMap : m_subscribers) {
-            if (subscriberMap.topic == topic) {
-                removeSubscriber(callback, subscriberMap);
-                if (subscriberMap.subscribers.empty()) {
-                    mapsToClear.push_back(&subscriberMap);
-                }
-            }
-        }
-
-        ESP_LOGI(TAG, "Found %d maps to clear", mapsToClear.size());
+    void PubSub::removeMapsToClear(std::vector<SubscriberMap*>& mapsToClear) {
         // remove all maps to clear from m_subscribers
         for (auto* map : mapsToClear) {
             ESP_LOGI(TAG, "Removing map for %d", map->topic);
@@ -163,14 +163,30 @@ namespace pubsub {
                 m_subscribers.end()
             );
         }
-
-        ESP_LOGI(TAG, "%d maps left", m_subscribers.size());
-
-        xSemaphoreGive(m_mutex);
-        ESP_LOGI(TAG, "Done unsubscribing %d, %p", topic, static_cast<void*>(callback.get()));
-    } else {
-        throwRuntimeError("unsubscribe", "Failed to take semaphore to unsubscribe from " + std::to_string(topic));
     }
+
+    void PubSub::unsubscribe(uint16_t topic, SubscriberCallback callback) {
+        ESP_LOGI(TAG, "Waiting to unsubscribe(%d, %p)", topic, static_cast<void*>(callback.get()));
+
+        doInMutex(
+            [this, topic, callback]() {
+                ESP_LOGI(TAG, "Unsubscribing %d, %p", topic, static_cast<void*>(callback.get()));
+
+                std::vector<SubscriberMap*> mapsToClear;
+                for (auto& subscriberMap : m_subscribers) {
+                    if (subscriberMap.topic == topic) {
+                        removeSubscriber(callback, subscriberMap, mapsToClear);
+                    }
+                }
+                ESP_LOGI(TAG, "Found %d maps to clear", mapsToClear.size());
+                removeMapsToClear(mapsToClear);
+
+                ESP_LOGI(TAG, "%d maps left", m_subscribers.size());
+                return true;
+            }, 
+            "unsubscribe", 
+            std::to_string(topic).c_str()
+        );
     }
 
     void PubSub::unsubscribeAll() {
@@ -185,37 +201,28 @@ namespace pubsub {
     void PubSub::unsubscribe(SubscriberCallback callback) {
         dump_subscribers("unsubscribe(callback) before");
         ESP_LOGI(TAG, "Waiting to unsubscribe callback %p", static_cast<void*>(callback.get()));
-        if (xSemaphoreTake(m_mutex, MutexTimeout) == pdTRUE) {
-            ESP_LOGI(TAG, "Unsubscribing callback %p", static_cast<void*>(callback.get()));
 
-            std::vector<SubscriberMap*> mapsToClear;
+        doInMutex(
+            [this, callback]() {
+                ESP_LOGI(TAG, "Unsubscribing callback %p", static_cast<void*>(callback.get()));
 
-            // run through the subscribers and remove the callback for each
-            for (auto& subscriberMap : m_subscribers) {
-                removeSubscriber(callback, subscriberMap);
-                if (subscriberMap.subscribers.empty()) {
-                    mapsToClear.push_back(&subscriberMap);
+                std::vector<SubscriberMap*> mapsToClear;
+
+                for (auto& subscriberMap : m_subscribers) {
+                    removeSubscriber(callback, subscriberMap, mapsToClear);
                 }
-            }
 
-            ESP_LOGI(TAG, "Found %d maps to clear", mapsToClear.size());
-            // remove all maps to clear from m_subscribers
-            for (auto* map : mapsToClear) {
-                ESP_LOGI(TAG, "Removing map for %d", map->topic);
-                m_subscribers.erase(
-                    std::remove_if(
-                        m_subscribers.begin(),
-                        m_subscribers.end(),
-                        [map](const SubscriberMap& sm) { return sm.topic == map->topic; }),
-                    m_subscribers.end()
-                );
-            }
-            xSemaphoreGive(m_mutex);
-            dump_subscribers("unsubscribe after");
-            ESP_LOGI(TAG, "Done unsubscribe(callback %p)", static_cast<void*>(callback.get()));
-        } else {
-            throwRuntimeError("unsubscribe", "Failed to take semaphore to unsubscribe a callback");
-        }
+                ESP_LOGI(TAG, "Found %d maps to clear", mapsToClear.size());
+                // remove all maps to clear from m_subscribers
+                removeMapsToClear(mapsToClear);
+
+                dump_subscribers("unsubscribe(callback) after");
+                ESP_LOGI(TAG, "Done unsubscribe(callback %p)", static_cast<void*>(callback.get()));
+                return true;
+            }, 
+            "unsubscribe", 
+            "all"
+        );
     }
 
     bool PubSub::isIdle() const {
@@ -267,6 +274,7 @@ namespace pubsub {
         constexpr const char* TAG = "receive";
         Message msg;
         ESP_LOGI(TAG, "Waiting to receive message");
+        // not using doInMutex here, as we don't want to block the event loop
         if (xSemaphoreTake(m_mutex, 2* MutexTimeout) == pdTRUE) {
             ESP_LOGI(TAG, "Receiving message");
             if (xQueueReceive(m_message_queue, &msg, 0) == pdFAIL) {
@@ -285,7 +293,6 @@ namespace pubsub {
                 m_processing = false;
             }
         } 
-        // The semaphore take waits indefinitely, so the else block will never be executed.
     }
 
     void PubSub::processMessage(const Message& msg) const {
