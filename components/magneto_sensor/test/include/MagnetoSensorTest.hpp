@@ -21,3 +21,7 @@
 #define DEFINE_TEST_CASE(test_name) \
     void test_##test_name()
 #endif
+
+namespace magneto_sensor {
+    void test_sensor_is_on();
+}

@@ -5,7 +5,7 @@
       "name": "(gdb) Launch",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/host_test/build/host_test.exe",
+      "program": "${workspaceFolder}/host_test/build/water_meter_host_test.exe",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",

@@ -34,7 +34,8 @@ inline bool xSemaphoreTake(SemaphoreHandle_t& semaphore, uint32_t timeout) {
     }
 }
 
-inline void xSemaphoreGive(SemaphoreHandle_t& semaphore) {
+inline bool xSemaphoreGive(SemaphoreHandle_t& semaphore) {
     semaphore->unlock();
     ESP_LOGI(STAG, "Semaphore given");
+    return true;
 }

@@ -1,6 +1,6 @@
 #include "I2cBus.hpp"
-#include "esp_log.h"
-#include "esp_err.h"
+#include <esp_log.h>
+#include <esp_err.h>
 
 namespace i2c {
 

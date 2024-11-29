@@ -28,26 +28,36 @@ message(STATUS "IDF_PATH=" ${IDF_PATH})
 
 #set (PUB_SUB_DIR ${CMAKE_SOURCE_DIR}/../components/pub_sub CACHE STRING "Path to the pub_sub component")
 
+file (GLOB_RECURSE TEST_SOURCES "${EXTRA_COMPONENT_DIRS}/*/test/*.cpp")
+message(STATUS "TEST_SOURCES=" ${TEST_SOURCES})
+
+file (GLOB_RECURSE MOCK_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/mock/*.cpp")
+
 # Add the source files for the tests
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/unit_test_main.cpp
-    ${PUB_SUB_DIR}/test/test_pub_sub.cpp
+    ${MOCK_SOURCES}
+    ${TEST_SOURCES}
 )
 
+message(STATUS "SOURCES=" ${SOURCES})
+file(GLOB_RECURSE COMPONENT_SOURCES "${EXTRA_COMPONENT_DIRS}/*/*.cpp")
+
 # Add the source files for the components
-set(COMPONENT_SOURCES
-    ${PUB_SUB_DIR}/pub_sub.cpp
-)
+#set(COMPONENT_SOURCES
+#    ${PUB_SUB_DIR}/pub_sub.cpp
+#)
+
+file(GLOB COMPONENT_INCLUDES "${EXTRA_COMPONENT_DIRS}/*/include" "${EXTRA_COMPONENT_DIRS}/*/test/include")
+message(STATUS "COMPONENT_INCLUDES=" ${COMPONENT_INCLUDES})
 
 # Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/mock/include
-    ${PUB_SUB_DIR}/include
-    ${PUB_SUB_DIR}/test/include
+    ${COMPONENT_INCLUDES}
     ${IDF_PATH}/components/unity/include
     ${IDF_PATH}/components/unity/unity/src
 )
-
 # Enable code coverage
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message(STATUS "Enabling code coverage")

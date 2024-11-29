@@ -70,7 +70,7 @@ inline void vQueueDelete(QueueHandle_t& queue) {
     delete queue;
 }
 
-inline bool isAligned(void* ptr, size_t alignment) {
+inline bool isAligned(const void* const ptr, const size_t alignment) {
     return reinterpret_cast<uintptr_t>(ptr) % alignment == 0;
 }
 
@@ -83,7 +83,8 @@ inline void displayCopiedItem(const std::shared_ptr<std::vector<uint8_t>>& copie
     }
     printf("\n");
 }
-inline bool xQueueSend(QueueHandle_t& queue, void* item, int) {
+
+inline bool xQueueSend(QueueHandle_t& queue, const void* const item, int) {
     std::lock_guard<std::mutex> lock(queue_mutex);
 
     if (ItemSize <= 0) {
@@ -98,7 +99,7 @@ inline bool xQueueSend(QueueHandle_t& queue, void* item, int) {
     }
 
     try {
-        auto real_item = static_cast<uint8_t*>(item);
+        auto real_item = static_cast<const uint8_t*>(item);
         ESP_LOGI(QTAG, "Creating std::vector<uint8_t>");
         auto copied_item = std::make_shared<std::vector<uint8_t>>(real_item, real_item + ItemSize);
         ESP_LOGI(QTAG, "std::vector<uint8_t> created and copied successfully");
