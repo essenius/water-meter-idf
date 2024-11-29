@@ -4,16 +4,11 @@
 namespace magneto_sensor {
     constexpr const char* kTag = "I2cBusMock";
 
-    I2cBusMock::I2cBusMock() : i2c::I2cBus(nullptr) {
-        ESP_LOGI(kTag, "Mock Bus Constructor");
-    }
+    I2cBusMock::I2cBusMock() : i2c::I2cBus(nullptr) {}
 
-    I2cBusMock::~I2cBusMock() {
-        ESP_LOGI(kTag, "Mock Bus Destructor");
-    }
+    I2cBusMock::~I2cBusMock() {}
 
-    void magneto_sensor::I2cBusMock::clear()
-    {
+    void magneto_sensor::I2cBusMock::clear() {
         m_writeBuffer.clear();
         m_readBuffer.clear();
         m_readIndex = 0;
@@ -86,7 +81,6 @@ bool I2cBusMock::isDevicePresent() {
     }
 
     esp_err_t I2cBusMock::writeByte(uint8_t value) const {
-        ESP_LOGI(kTag, "Writing 0x%02x", value);
         m_writeBuffer.push_back(value);
         return ESP_OK;
     }
@@ -110,14 +104,6 @@ bool I2cBusMock::isDevicePresent() {
     }
 
     size_t I2cBusMock::writeMismatchIndex(const uint8_t* buffer, size_t size) {
-        for (size_t i = 0; i < m_writeBuffer.size(); ++i) {
-            printf("0x%02x ", m_writeBuffer[i]);
-        }
-        printf(" (size %d)\n", m_writeBuffer.size());
-        for (size_t i = 0; i < size; ++i) {
-            printf("0x%02x ", buffer[i]);
-        }
-        printf(" (size %d)\n", size);
         for (size_t i = 0; i < size; ++i) {
             if (i >= m_writeBuffer.size() || m_writeBuffer[i] != buffer[i]) {
                 ESP_LOGI(kTag, "Mismatch at %d", i);

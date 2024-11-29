@@ -11,6 +11,7 @@
 
 #include "unity.h"
 #include "MagnetoSensorNull.hpp"
+#include "test_magneto_sensor.hpp"
 
 #ifdef ESP_PLATFORM
 #define DEFINE_TEST_CASE(test_name) \
@@ -24,7 +25,7 @@ namespace magneto_sensor {
     using magneto_sensor::MagnetoSensorNull;
     using magneto_sensor::SensorData;
 
-    DEFINE_TEST_CASE(null_script) {
+    DEFINE_TEST_CASE(null_sensor_script) {
         MagnetoSensorNull nullSensor;
         TEST_ASSERT_FALSE_MESSAGE(nullSensor.begin(), "begin() returns false");
         TEST_ASSERT_TRUE_MESSAGE(nullSensor.isOn(), "IsOn() returns true");

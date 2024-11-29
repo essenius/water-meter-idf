@@ -31,7 +31,6 @@ namespace i2c {
         template <typename Func>
         esp_err_t performOperation(Func&& operation) {
             auto error = beginTransmission();
-            ESP_LOGI("i2cBus.hpp", "in performOperation after begin transmission: device = %p", m_device);
             if (error != ESP_OK) return error;
             error = operation();
             if (error != ESP_OK) return error;
@@ -53,4 +52,3 @@ namespace i2c {
         i2c_master_dev_handle_t m_device = nullptr;
     };
 }
- 

@@ -10,25 +10,20 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 #include "unity.h"
-#include "I2cBusMock.hpp"
-#include "MagnetoSensorTest.hpp"
+#include "test_magneto_sensor.hpp"
 
 namespace magneto_sensor {
-
-        
-DEFINE_TEST_CASE(sensor_is_on) {
-        I2cBusMock i2cBus;
-        MagnetoSensor sensor(&i2cBus);
-
-        i2cBus.setIsDevicePresent(true);
-        TEST_ASSERT_TRUE_MESSAGE(sensor.isOn(), "Sensor is on");
-
-        i2cBus.setIsDevicePresent(false);
-        TEST_ASSERT_FALSE_MESSAGE(sensor.isOn(), "Sensor is off");
-
-        sensor.waitForPowerOff();
-
-        MagnetoSensor sensor2(nullptr);
-        TEST_ASSERT_FALSE_MESSAGE(sensor2.isOn(), "Sensor without bus is off");
+    DEFINE_TEST_CASE(sensor_data_saturated) {
+        SensorData data;
+        data.reset();
+        TEST_ASSERT_FALSE_MESSAGE(data.isSaturated(), "Not saturated");
+        data.x = SHRT_MIN;
+        TEST_ASSERT_TRUE_MESSAGE(data.isSaturated(), "Saturated on x");
+        data.reset();
+        data.y = SHRT_MIN;
+        TEST_ASSERT_TRUE_MESSAGE(data.isSaturated(), "Saturated on y");
+        data.reset();
+        data.z = SHRT_MIN;
+        TEST_ASSERT_TRUE_MESSAGE(data.isSaturated(), "Saturated on z");
     }
 }

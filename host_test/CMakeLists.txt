@@ -32,6 +32,7 @@ file (GLOB_RECURSE TEST_SOURCES "${EXTRA_COMPONENT_DIRS}/*/test/*.cpp")
 message(STATUS "TEST_SOURCES=" ${TEST_SOURCES})
 
 file (GLOB_RECURSE MOCK_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/mock/*.cpp")
+message(STATUS "MOCK_SOURCES=" ${MOCK_SOURCES})
 
 # Add the source files for the tests
 set(SOURCES

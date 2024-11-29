@@ -28,7 +28,6 @@ namespace magneto_sensor {
     }
 
     void MagnetoSensorHmc::configure(const uint8_t range, const uint8_t bias) const {
-        ESP_LOGI(kTag, "Configuring HMC5883L sensor, oversampling 0x%02x, rate 0x%02x, bias 0x%02x, range 0x%02x", m_overSampling, m_rate, bias, range);
         m_i2cBus->writeRegister(HmcRegister::ControlA, m_overSampling + m_rate + bias);
         m_i2cBus->writeRegister(HmcRegister::ControlB, range);
     }
@@ -38,7 +37,6 @@ namespace magneto_sensor {
     }
 
     void MagnetoSensorHmc::configureOverSampling(const uint8_t overSampling) {
-        ESP_LOGI(kTag, "Oversampling = 0x%02x", overSampling);
         m_overSampling = overSampling;
     }
 
@@ -91,14 +89,12 @@ namespace magneto_sensor {
     int16_t MagnetoSensorHmc::getWord(const uint8_t* input) const {
 
         // order is MSB, LSB
-        ESP_LOGI(kTag, "Input[0] = 0x%02x, Input[1] = 0x%02x", input[0], input[1]);
         int16_t result = input[0] * 0x100 + input[1];
 
         // harmonize saturation values across sensors
         if (result <= Saturated) {
             result = SHRT_MIN;
         }
-        ESP_LOGI(kTag, "Result = 0x%04x", result);
         return result;
     }
 
@@ -110,13 +106,10 @@ namespace magneto_sensor {
         constexpr int BytesToRead = 6;
         uint8_t output[BytesToRead];
         if (m_i2cBus->writeByteAndReadData(HmcRegister::Data, output, BytesToRead) != ESP_OK) return false;
-        for (int i = 0; i < BytesToRead; i++) {
-            ESP_LOGI(kTag, "Output[%d] = 0x%02x", i, output[i]);
-        }
         sample.x = getWord(output);
         sample.z = getWord(output + 2);
         sample.y = getWord(output + 4);
-        ESP_LOGI(kTag, "Read sample x: 0x%04x, y: 0x%04x, z: 0x%04x", sample.x, sample.y, sample.z);
+        ESP_LOGD(kTag, "Read sample x: 0x%04x, y: 0x%04x, z: 0x%04x", sample.x, sample.y, sample.z);
         return true;
     }
 

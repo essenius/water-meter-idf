@@ -15,12 +15,13 @@
 #include "pub_sub.hpp"
 #include "test_pub_sub.hpp"
 #include "test_i2c_bus.hpp"
+#include "test_magneto_sensor.hpp"
 #include "esp_log.h"
 #include "driver/i2c_master.h"
 
 void setUp(void) {
-    // Set up code
-    constexpr uint8_t expectedOutput[] = {0, 1, 2, 3, 4, 5};
+    // use values that would pass the test in hmc (i.e. between 243 and 575)
+    constexpr uint8_t expectedOutput[] = {0x00, 0xf4, 0x01, 0x80, 0x02, 0x3e};
     i2c_master_test::setOutput(expectedOutput, sizeof expectedOutput);
 }
 
@@ -33,11 +34,9 @@ constexpr const char* MTAG = "main";
 extern "C" int main(int argc, char **argv) {
     UNITY_BEGIN();
     ESP_LOGI(MTAG, "Running tests in C++ %ld", __cplusplus);
-    RUN_TEST(i2c::test_is_present);
-    RUN_TEST(i2c::test_read_write_register);
-    RUN_TEST(i2c::test_hmc_read);
-    RUN_TEST(pubsub::test_all_payload_types);
-//    RUN_TEST(pubsub::test_multiple_subscribers);
+    i2c::run_tests();
+    magneto_sensor::run_tests();
+    pub_sub::run_tests();
     ESP_LOGI(MTAG, "All tests done");
     int result = UNITY_END();
     deleteAllTasks(); 

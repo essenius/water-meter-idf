@@ -34,7 +34,6 @@ namespace i2c_master_test {
 }
 
 esp_err_t i2c_master_transmit_receive(i2c_master_dev_handle_t i2c_dev, const uint8_t *write_buffer, size_t write_size, uint8_t *read_buffer, size_t read_size, int xfer_timeout_ms) { 
-    ESP_LOGI("i2c_master", "Transmit receive");
     if (write_size >= 10 || read_size >= 10) return ESP_FAIL;
     for (int i = 0; i < write_size; i++) {
         i2c_master_test::writeByte(write_buffer[i]);
@@ -53,7 +52,6 @@ esp_err_t i2c_master_transmit_receive(i2c_master_dev_handle_t i2c_dev, const uin
 }
 
 esp_err_t i2c_master_transmit(i2c_master_dev_handle_t i2c_dev, const uint8_t *write_buffer, size_t write_size, int xfer_timeout_ms) {
-    ESP_LOGI("i2c_master", "Transmit");
     if (write_size >= 10) return ESP_FAIL;
     for (int i = 0; i < write_size; i++) {
         i2c_master_test::writeByte(write_buffer[i]);

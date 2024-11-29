@@ -25,7 +25,7 @@
 #include <format>
 #include <atomic>
 
-namespace pubsub {
+namespace pub_sub {
 
     struct Coordinate {
         uint16_t x;
@@ -38,15 +38,16 @@ namespace pubsub {
     };
     using Payload = std::variant<int, float, const char*, Coordinate>;
     using Topic = uint16_t;
-    using SubscriberCallback = std::shared_ptr<std::function<void(const Topic, const Payload&)>>;
+    using SubscriberCallback = std::function<void(const Topic, const Payload&)>;
+    using SubscriberCallbackHandle = SubscriberCallback*;
     
     struct SubscriberMap {
         uint16_t topic;
-        std::vector<SubscriberCallback> subscribers;
+        std::vector<SubscriberCallbackHandle> subscribers;
     };
 
     struct Message {
-        SubscriberCallback source;
+        SubscriberCallbackHandle source;
         Payload message;
         uint16_t topic;
     };
@@ -57,20 +58,20 @@ namespace pubsub {
             explicit MessageVisitor(char(&buffer)[BufferSize]) :m_buffer(buffer) {}
     
             void operator()(int value) const {
-                snprintf(m_buffer, m_bufferSize, "int: %d", value);
+                snprintf(m_buffer, m_bufferSize, "%d", value);
             }
 
             void operator()(float value) const {
-                snprintf(m_buffer, m_bufferSize, "float: %f", value);
+                snprintf(m_buffer, m_bufferSize, "%f", value);
             }
 
             void operator()(const char* value) const {
-                snprintf(m_buffer, m_bufferSize - 1, "string: %s", value);
+                strncpy(m_buffer, value, m_bufferSize - 1);
                 m_buffer[m_bufferSize] = '\0';
             }
 
             void operator()(const Coordinate& value) const {
-                snprintf(m_buffer, m_bufferSize - 1, "coordinate: x=%d, y=%d", value.x, value.y);
+                snprintf(m_buffer, m_bufferSize - 1, "%d, %d", value.x, value.y);
             }
 
         private:
@@ -83,26 +84,24 @@ namespace pubsub {
         PubSub();
         ~PubSub();
 
-        void publish(uint16_t topic, const Payload& message, SubscriberCallback source = nullptr);
-        void subscribe(uint16_t topic, SubscriberCallback callback);
-        void unsubscribe(uint16_t topic, SubscriberCallback callback);
+        void publish(uint16_t topic, const Payload& message, const SubscriberCallbackHandle& source = nullptr);
+        void subscribe(uint16_t topic, const SubscriberCallbackHandle& callback);
+        void unsubscribe(uint16_t topic, const SubscriberCallbackHandle& callback);
         void unsubscribeAll();
-        void unsubscribe(SubscriberCallback callback);
+        void unsubscribe(const SubscriberCallbackHandle& callback);
         bool isIdle() const;
         void receive();
         void waitForIdle() const;
         void dump_subscribers(const char* tag = "dump") const;
 
     private:
-        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, SubscriberCallback callback);
+        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberCallbackHandle& callback);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
-        bool doesCallbackExist(const SubscriberMap& subscriberMap, SubscriberCallback callback) const;
-        void removeMapsToClear(std::vector<SubscriberMap *> &mapsToClear);
+        bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberCallbackHandle& callback) const;
+        void removeMapsToClear(const std::vector<SubscriberMap *> &mapsToClear);
 
         template <typename Func>
         bool doInMutex(Func&& operation, const char* context, const char* detail) {
-            ESP_LOGI(context, "Waiting to take mutex for %s", detail);
-
             if (xSemaphoreTake(m_mutex, MutexTimeout + 2) != pdTRUE) {
                 throwRuntimeError(context, std::string("Failed to take semaphore for " + std::string(detail)));
             }
@@ -118,8 +117,8 @@ namespace pubsub {
 #endif
         static void eventLoop(void* pubsubInstance);
         void processMessage(const Message &msg) const;
-        void removeSubscriber(SubscriberCallback callback, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
-        void throwRuntimeError(const std::string& context, const std::string& detail) const;
+        void removeSubscriber(const SubscriberCallbackHandle& callback, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
+        [[noreturn]] void throwRuntimeError(const std::string& context, const std::string& detail) const;
 
         std::vector<SubscriberMap> m_subscribers;
         int m_topic_count;
@@ -128,7 +127,6 @@ namespace pubsub {
         TaskHandle_t m_eventLoopTaskHandle;
         std::atomic<bool> m_terminateFlag;
 
-        static const char* TAG;
         static const int MutexTimeout = pdMS_TO_TICKS(1000);
 
         std::condition_variable m_conditionVariable;

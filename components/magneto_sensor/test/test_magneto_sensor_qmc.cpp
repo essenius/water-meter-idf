@@ -12,7 +12,7 @@
 #include "unity.h"
 #include "MagnetoSensorQmc.hpp"
 #include "I2cBusMock.hpp"
-#include "MagnetoSensorTest.hpp"
+#include "test_magneto_sensor.hpp"
 
 namespace magneto_sensor {
     using magneto_sensor::MagnetoSensorQmc;

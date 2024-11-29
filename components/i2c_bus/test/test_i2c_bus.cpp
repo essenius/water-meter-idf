@@ -15,7 +15,7 @@
 
 namespace i2c {
 
-    constexpr const char* kI2cTag = "I2cBusTest";
+    constexpr const char* kI2cTag = "test_i2c_bus";
 
     DEFINE_TEST_CASE(is_present) {
         // make sure an HMC sensor is on the bus when running this test
@@ -36,10 +36,8 @@ namespace i2c {
         uint8_t registerValue1 = 0x00;
         uint8_t registerValue2 = 0xff;
         TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, i2cBus.readRegister(0x00, registerValue1), "Read register 0x00 ok");
-        ESP_LOGI(kI2cTag, "Register 0x00 value: %d", registerValue1);
         TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, i2cBus.writeRegister(0x00, 0x00), "Write register 0x00 ok");
         TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, i2cBus.readRegister(0x00, registerValue2), "Read register 0x00 2nd time ok");
-        ESP_LOGI(kI2cTag, "Register 0x00 value: %d", registerValue2);
         TEST_ASSERT_EQUAL_MESSAGE(0, registerValue2, "Read back register 0x00 value is 0");
         TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, i2cBus.writeRegister(0x00, registerValue1), "Wrote old value back");
 
@@ -58,6 +56,6 @@ namespace i2c {
         constexpr int BytesToRead = 6;
         uint8_t output[BytesToRead];
         TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, i2cBus.writeByteAndReadData(3, output, BytesToRead), "Read data");
-        ESP_LOGI(kI2cTag, "X: %d, Y: %d, Z: %d", output[0] * 0xff + output[1], output[2] * 0xff + output[3], output[4] * 0xff + output[5]);
+        ESP_LOGD(kI2cTag, "X: %d, Y: %d, Z: %d", output[0] * 0xff + output[1], output[2] * 0xff + output[3], output[4] * 0xff + output[5]);
     }
 }

@@ -18,11 +18,16 @@
 #include "test_pub_sub.hpp"
 
 
-namespace pubsub {
+namespace pub_sub {
     
+    void customDeleter(std::function<void(const Topic, const Payload&)>* ptr) {
+        ESP_LOGI("customDeleter", "Deleting function %p", ptr);
+        delete ptr;
+    }
+
     class TestSubscriber {
     public:
-        TestSubscriber(int id) : _id(id) , _messageVisitor(_buffer) {}
+        explicit TestSubscriber(int id) : _id(id) , _messageVisitor(_buffer) {}
         const char* getBuffer() const { 
             ESP_LOGI(TAG, "Buffer: %s", _buffer);
             return _buffer; 
@@ -39,15 +44,11 @@ namespace pubsub {
             _topic = topic;
             _callCount++;
             std::visit(_messageVisitor, message);
-            ESP_LOGI(TAG, "Callback, id=%d, topic=%d, message='%s'", _id, topic, _buffer);
+            ESP_LOGW("subscriberCallback", "id=%d, topic=%d, message='%s'\n", _id, topic, _buffer);
         }
 
-        SubscriberCallback getCallback() {
-            return std::make_shared<std::function<void(const Topic, const Payload&)>>(
-                [this](const Topic topic, const Payload& message) {
-                    this->subscriberCallback(topic, message);
-                }
-            );
+        SubscriberCallbackHandle getCallback() {
+            return &_callback;
         }
 
     private:
@@ -57,25 +58,23 @@ namespace pubsub {
         char _buffer[100] = {0};
         uint32_t _callCount = 0;
         MessageVisitor<100> _messageVisitor;
+        SubscriberCallback _callback = std::bind(&TestSubscriber::subscriberCallback, this, std::placeholders::_1, std::placeholders::_2);
+
     };
 
-const char* TestSubscriber::TAG = "TestSubscriber";
+    const char* TestSubscriber::TAG = "TestSubscriber";
 
     constexpr const char* TAG = "testPubSub";
 
     std::atomic<bool> terminateEventLoop(false);
 
-#ifdef ESP_PLATFORM
-TEST_CASE("All payload types", "[pub_sub]") {
-#else
-    void test_all_payload_types() {
-#endif
-        const char* TAG = "testPubSub-AllPayloadTypes";
-        ESP_LOGI(TAG, "*** Starting all payload types test ***\n");
+    DEFINE_TEST_CASE(all_payload_types) {
+        const char* kTestTag = "testPubSub-AllPayloadTypes";
+        ESP_LOGI(kTestTag, "*** Starting all payload types test ***\n");
         PubSub pubsub;
         TestSubscriber subscriber(1);
 
-        SubscriberCallback callback = subscriber.getCallback();
+        SubscriberCallbackHandle callback = subscriber.getCallback();
 
         // subscribe before event loop started should work
         pubsub.subscribe(100, callback);
@@ -83,29 +82,29 @@ TEST_CASE("All payload types", "[pub_sub]") {
         // subscribe after event loop started should work too
         pubsub.subscribe(200, callback);
 
-        ESP_LOGI(TAG, "Sending int message with subscriber");
+        ESP_LOGI(kTestTag, "Sending int message with subscriber");
 
         // publish an int message that someone is subscribed to
         pubsub.publish(100, 42);
         
         pubsub.waitForIdle();
 
-        TEST_ASSERT_EQUAL_STRING_MESSAGE("int: 42", subscriber.getBuffer(), "Buffer should contain 'int: 42'");
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("42", subscriber.getBuffer(), "Buffer should contain '42'");
         TEST_ASSERT_EQUAL_MESSAGE(100, subscriber.getTopic(), "Topic should be 100");
 
         // send a coordinate message to a different topic that is being listened to
-        ESP_LOGI(TAG, "Sending coordinate message");
+        ESP_LOGI(kTestTag, "Sending coordinate message");
         Payload message;
         message.emplace<Coordinate>(100, 200);
         pubsub.publish(200, message);
         pubsub.waitForIdle();
    
-        TEST_ASSERT_EQUAL_STRING_MESSAGE("coordinate: x=100, y=200", subscriber.getBuffer(), "Coordinate correct");
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("100, 200", subscriber.getBuffer(), "Coordinate correct");
         TEST_ASSERT_EQUAL_MESSAGE(200, subscriber.getTopic(), "Topic should be 200");
         
         // now publish a message that no one is subscribed to
         subscriber.reset();
-        ESP_LOGI(TAG, "Sending message that nobody is subscribed to");
+        ESP_LOGI(kTestTag, "Sending message that nobody is subscribed to");
 
         pubsub.publish(300, 42);
         pubsub.waitForIdle();
@@ -114,34 +113,32 @@ TEST_CASE("All payload types", "[pub_sub]") {
 
         // publish a string message
         Payload string_message = "Hello, World!";
-        ESP_LOGI(TAG, "Sending string message");
+        ESP_LOGI(kTestTag, "Sending string message");
         pubsub.publish(200, string_message);
         pubsub.waitForIdle();
-        TEST_ASSERT_EQUAL_STRING_MESSAGE("string: Hello, World!", subscriber.getBuffer(), "String correct");
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("Hello, World!", subscriber.getBuffer(), "String correct");
         TEST_ASSERT_EQUAL_MESSAGE(200, subscriber.getTopic(), "Topic should be 200 again");
-        ESP_LOGI(TAG, "Ending all payload types test");
+        ESP_LOGI(kTestTag, "Ending all payload types test");
         //pubsub.unsubscribeAll();
         terminateEventLoop.store(true);
     }
 
-#ifdef ESP_PLATFORM
-TEST_CASE("Multiple subscribers", "[pub_sub]") {
-#else
-void test_multiple_subscribers() {
-#endif
-        constexpr const char* TAG = "testPubSub-MultipleSubscribers";
-        ESP_LOGI(TAG, "\n*** Starting multiple subscribers test ***\n");
+    DEFINE_TEST_CASE(multiple_subscribers) {
+        constexpr const char* kTestTag = "testPubSub-MultipleSubscribers";
+        ESP_LOGI(kTestTag, "\n*** Starting multiple subscribers test ***\n");
         PubSub pubsub;
         TestSubscriber subscriber1(1);
         TestSubscriber subscriber2(2);
         TestSubscriber subscriber3(3);
 
-        SubscriberCallback callback1 = subscriber1.getCallback();
-        SubscriberCallback callback2 = subscriber2.getCallback();
-        SubscriberCallback callback3 = subscriber3.getCallback();
+        SubscriberCallbackHandle callback1 = subscriber1.getCallback();
+        SubscriberCallbackHandle callback2 = subscriber2.getCallback();
+        SubscriberCallbackHandle callback3 = subscriber3.getCallback();
+
+        ESP_LOGW(kTestTag, "Subscribers created: 1=%p, 2=%p, 3=%p", callback1, callback2, callback3);
 
         // Define the subscriptions
-        std::vector<std::pair<Topic, SubscriberCallback>> subscriptions = {
+        std::vector<std::pair<Topic, SubscriberCallbackHandle>> subscriptions = {
             {1, callback1},
             {2, callback1},
             {2, callback2},
@@ -153,12 +150,11 @@ void test_multiple_subscribers() {
             pubsub.subscribe(topic, callback);
         }
 
-        ESP_LOGI(TAG, "Sending message to topic 2 from callback1");
         pubsub.publish(2, 42, callback1);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber1.getCallCount(), "Subscriber1 was not called (subscribed to topic 2 but source)");
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber2.getCallCount(), "Subscriber2 was called (subscribed to topic 2)");
-        TEST_ASSERT_EQUAL_STRING_MESSAGE("int: 42", subscriber2.getBuffer(), "Subscriber2 content is int 42");
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("42", subscriber2.getBuffer(), "Subscriber2 content is int 42");
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber3.getCallCount(), "Subscriber3 was called (subscribed to topic 2)");
         TEST_ASSERT_EQUAL_MESSAGE(2, subscriber3.getTopic(), "Subscriber3 topic is 2");
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber1.getCallCount(), "Subscriber1 not called (not subscribed to topic 2)");
@@ -168,14 +164,14 @@ void test_multiple_subscribers() {
         subscriber3.reset();
         pubsub.unsubscribe(2, callback1);
         pubsub.unsubscribe(2, callback3); 
-        ESP_LOGI(TAG, "Testing unsubscribe. Sending topic 2 from callback 2 which should not be picked up");
+        ESP_LOGI(kTestTag, "Testing unsubscribe. Sending topic 2 from callback 2 which should not be picked up.");
         pubsub.publish(2, 10, callback2);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber1.getCallCount(), "Subscriber1 was not called (not subscribed to topic 2)");
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called (subscribed to topic 2 but it is the source)");
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber3.getCallCount(), "Subscriber3 was not called (not subscribed to topic 2)");
 
-        ESP_LOGI(TAG, "Testing unsubscribe. Sending topic 3 from callback 2 which subscriber3 should pick up");
+        ESP_LOGI(kTestTag, "Testing unsubscribe. Sending topic 3 from callback 2 which subscriber3 should pick up.");
 
         pubsub.publish(3, 10, callback2);
         pubsub.waitForIdle();
@@ -183,52 +179,45 @@ void test_multiple_subscribers() {
         
         subscriber3.reset();
 
-        ESP_LOGI(TAG, "sending topic 1 from callback 2 which subscriber1 should pick up");
+        ESP_LOGI(kTestTag, "sending topic 1 from callback 2 which subscriber1 should pick up.");
         pubsub.publish(1, 15, callback2);
         pubsub.waitForIdle();
 
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber1.getCallCount(), "Subscriber1 was called (subscribed to topic 1)");
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber1.getTopic(), "Subscriber1 topic is 1");
-        TEST_ASSERT_EQUAL_STRING_MESSAGE("int: 15", subscriber1.getBuffer(), "Subscriber1 content is int 15");
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("15", subscriber1.getBuffer(), "Subscriber1 content is int 15");
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called (not subscribed to topic 1)");
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber3.getCallCount(), "Subscriber3 was not called (not subscribed to topic 1)");
-
         subscriber1.reset();
 
         // subscribing twice still sends one message
-        pubsub.dump_subscribers("before duplicate subscription on topic 1");
-
     	pubsub.subscribe(1, callback1);
-        ESP_LOGI(TAG, "Sending topic 1 from callback 2 to ensure that subscribing twice only results in one execution");
-
-        pubsub.dump_subscribers("after duplicate subscription on topic 1");
+        ESP_LOGI(kTestTag, "Sending topic 1 from callback 2 to ensure that subscribing twice only results in one execution");
 
         pubsub.publish(1, 327, callback2);
-        pubsub.dump_subscribers("after publish 327");
-        ESP_LOGI(TAG, "waiting for idle after sending 327"); 
         pubsub.waitForIdle();
+
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber1.getCallCount(), "Subscriber1 was called once, not twice");
-        ESP_LOGI(TAG, "passed idle and test"); 
         subscriber1.reset();
 
         // unsubscribing stops update
         pubsub.unsubscribe(2, callback2);
 
-        ESP_LOGI(TAG, "passed unsubscribe"); 
         pubsub.publish(2, 49);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called (not subscribed to 2 anymore)");
 
         // unsubscribing a topic not subscribed to is handled gracefully
         pubsub.unsubscribe(2, callback2);
-        ESP_LOGI(TAG, "Sending topic 2 to ensure that unsubscribing from a non-subscribed topic has no effect");
+
+        ESP_LOGI(kTestTag, "Sending topic 2 to ensure that unsubscribing from a non-subscribed topic has no effect");
         pubsub.publish(2, 51);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called after second unsubscribe");
 
         pubsub.subscribe(3, callback1);
 
-        ESP_LOGI(TAG, "Sending topic 3 from callback2 to check the new subscription gets picked up next to the one that was there");
+        ESP_LOGI(kTestTag, "Sending topic 3 from callback2 to check the new subscription gets picked up next to the one that was there");
         pubsub.publish(3, 51, callback2);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber1.getCallCount(), "Subscriber1 was called after new subscribe");
@@ -238,7 +227,8 @@ void test_multiple_subscribers() {
         subscriber3.reset();
         // unsubscribe a subscriber from all topics
         pubsub.unsubscribe(callback1);
-        ESP_LOGI(TAG, "Sending topic 1 and 3 from callback2 to check the unsubscribe all works");
+
+        ESP_LOGI(kTestTag, "Sending topic 1 and 3 from callback2 to check the unsubscribe all works");
         pubsub.publish(3, 69, callback2);
         pubsub.publish(1, 77, callback3);
         pubsub.waitForIdle();

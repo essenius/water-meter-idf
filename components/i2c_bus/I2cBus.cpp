@@ -7,7 +7,6 @@ namespace i2c {
     constexpr const char* kTag = "I2CBus";
 
     I2cBus::I2cBus(uint8_t sda, uint8_t scl) {
-        ESP_LOGI(kTag, "Creating bus, sda=%d, scl=%d", sda, scl);
         i2c_master_bus_config_t busConfig;
         busConfig.i2c_port = I2C_NUM_0;
         busConfig.sda_io_num = static_cast<gpio_num_t>(sda);
@@ -17,27 +16,19 @@ namespace i2c {
         busConfig.intr_priority = 0;
         busConfig.trans_queue_depth = 0; // synchronous operation
         busConfig.flags.enable_internal_pullup = true;
-        ESP_LOGI(kTag, "Creating bus handle");
         ESP_ERROR_CHECK(i2c_new_master_bus(&busConfig, &m_busHandle));
-        ESP_LOGI(kTag, "Bus handle %p created", m_busHandle);
     }
 
     I2cBus::~I2cBus() {
-        ESP_LOGI(kTag, "Bus Destructor");
         if (m_device) {
-            ESP_LOGI(kTag, "Destructor: removing device %p", m_device);
             i2c_master_bus_rm_device(m_device);
-            ESP_LOGI(kTag, "Destructor: removed device %p", m_device);
         }
         if (m_busHandle) {
-            ESP_LOGI(kTag, "Destroying bus handle %p", m_busHandle);
             i2c_del_master_bus(m_busHandle);
-            ESP_LOGI(kTag, "Destroyed bus handle %p", m_busHandle);
         }
     }
 
     bool I2cBus::isDevicePresent() {
-        ESP_LOGI(kTag, "Probing device 0x%02x on bus %p", m_address, m_busHandle);
         return i2c_master_probe(m_busHandle, m_address, kProbeTimeoutMillis) == ESP_OK;
     }
 
@@ -50,14 +41,11 @@ namespace i2c {
         i2c_device_config_t deviceConfig;
         deviceConfig.device_address = m_address;
         deviceConfig.scl_speed_hz = kFrequency;
-        ESP_LOGI(kTag, "Adding device 0x%02x to bus %p", m_address, m_busHandle);
         auto returnValue = i2c_master_bus_add_device(m_busHandle, &deviceConfig, &m_device);
-        ESP_LOGI(kTag, "Device added, device handle=%p", m_device);
         return returnValue;
     }
 
     esp_err_t I2cBus::endTransmission() {
-        ESP_LOGI(kTag, "Removing device");
         auto returnValue = i2c_master_bus_rm_device(m_device);
         m_device = nullptr;
         return returnValue;
@@ -65,7 +53,6 @@ namespace i2c {
 
     bool I2cBus::isInitialized() const {
         if (!m_device) {
-            ESP_LOGE(kTag, "I2C device not initialized");
             return false;
         }
         return true;
@@ -76,9 +63,7 @@ namespace i2c {
             uint8_t data[2];
             data[0] = sensorRegister;
             data[1] = 0;
-            ESP_LOGI(kTag, "Reading register 0x%02x on device %p", sensorRegister, this->m_device);
             auto returnValue = i2c_master_transmit_receive(this->m_device, data, 1, &value, 1, kProbeTimeoutMillis);
-            ESP_LOGI(kTag, "Read register 0x%02x value 0x%02x", sensorRegister, value);
             return returnValue;
         });
     }
@@ -89,9 +74,7 @@ namespace i2c {
             uint8_t data[2];
             data[0] = sensorRegister;
             data[1] = value;
-            ESP_LOGI(kTag, "Writing 0x%02x to register 0x%02x on device %p", value, sensorRegister, this->m_device);
             return i2c_master_transmit(m_device, data, 2, kProbeTimeoutMillis);
-            ESP_LOGI(kTag, "Wrotw 0x%02x to register 0x%02x on device %p", value, sensorRegister, this->m_device);
         });
     }
 

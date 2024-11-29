@@ -18,24 +18,15 @@ inline SemaphoreHandle_t xSemaphoreCreateMutex() {
 
 inline bool xSemaphoreTake(SemaphoreHandle_t& semaphore, uint32_t timeout) {
     if (timeout == portMAX_DELAY) {
-        ESP_LOGI(STAG, "Taking semaphore");
         semaphore->lock();
         return true;
     } else {
-        ESP_LOGI(STAG, "Taking semaphore with timeout: %d", timeout);
         auto timeout_duration = std::chrono::milliseconds(timeout * portTICK_PERIOD_MS);
-        if (semaphore->try_lock_for(timeout_duration)) {
-            ESP_LOGI(STAG, "Semaphore taken (timeout %d)", timeout);
-            return true;
-        } else {
-            ESP_LOGI(STAG, "Semaphore not taken (timeout %d)", timeout);
-            return false;
-        }
+        return semaphore->try_lock_for(timeout_duration);
     }
 }
 
 inline bool xSemaphoreGive(SemaphoreHandle_t& semaphore) {
     semaphore->unlock();
-    ESP_LOGI(STAG, "Semaphore given");
     return true;
 }

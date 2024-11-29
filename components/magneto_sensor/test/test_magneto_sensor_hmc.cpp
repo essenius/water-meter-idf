@@ -12,12 +12,10 @@
 #include "unity.h"
 #include "MagnetoSensorHmc.hpp"
 #include "esp_log.h"
-#include "MagnetoSensorTest.hpp"
+#include "test_magneto_sensor.hpp"
 
 namespace magneto_sensor {
     
-    constexpr const char* kHmcTag = "MagnetoSensorHmcTest";
-
     DEFINE_TEST_CASE(hmc_get_gain) {
         TEST_ASSERT_EQUAL_MESSAGE(1370.0, MagnetoSensorHmc::getGain(HmcRange::Range0_88), "0.88G gain ok");
         TEST_ASSERT_EQUAL_MESSAGE(1090.0, MagnetoSensorHmc::getGain(HmcRange::Range1_3), "1.3G gain ok");
@@ -27,21 +25,15 @@ namespace magneto_sensor {
         TEST_ASSERT_EQUAL_MESSAGE(390.0, MagnetoSensorHmc::getGain(HmcRange::Range4_7), "4.7G gain ok");
         TEST_ASSERT_EQUAL_MESSAGE(330.0, MagnetoSensorHmc::getGain(HmcRange::Range5_6), "5.6G gain ok");
         TEST_ASSERT_EQUAL_MESSAGE(230.0, MagnetoSensorHmc::getGain(HmcRange::Range8_1), "8.1G gain ok");
-        ESP_LOGI(kHmcTag, "static getGain() test passed. Creating sensor");
         I2cBusMock i2cBus;
         MagnetoSensorHmc sensor(&i2cBus);
-        ESP_LOGI(kHmcTag, "Created sensor");
         sensor.configureRange(HmcRange::Range2_5);
-        ESP_LOGI(kHmcTag, "Configured range");
         TEST_ASSERT_EQUAL_MESSAGE(660.f, sensor.getGain(), "getGain() returns correct value");
     }
 
     DEFINE_TEST_CASE(hmc_power_on) {
-        ESP_LOGI(kHmcTag, "Creating bus");
         i2c::I2cBus i2cBus; 
-        ESP_LOGI(kHmcTag, "Creating sensor");
-        MagnetoSensorHmc sensor(&i2cBus);
-        
+        MagnetoSensorHmc sensor(&i2cBus);       
         TEST_ASSERT_TRUE_MESSAGE(sensor.handlePowerOn(), "Sensor Test passed");
     }
 
@@ -50,9 +42,7 @@ namespace magneto_sensor {
         MagnetoSensorHmc sensor(&i2cBus);
         sensor.configureRange(HmcRange::Range0_88);
         TEST_ASSERT_EQUAL_MESSAGE(HmcRange::Range0_88, sensor.getRange(), "Initial range 0.88 OK");
-        ESP_LOGI(kHmcTag, "tested range");
         TEST_ASSERT_TRUE_MESSAGE(sensor.increaseRange(), "Increase range from 0.88 OK");
-        ESP_LOGI(kHmcTag, "increased range");
         TEST_ASSERT_EQUAL_MESSAGE(HmcRange::Range1_3, sensor.getRange(), "Range 1.3 OK");
         TEST_ASSERT_TRUE_MESSAGE(sensor.increaseRange(), "Increase range from 1.3 OK");
         TEST_ASSERT_EQUAL_MESSAGE(HmcRange::Range1_9, sensor.getRange(), "Range 1.9 OK");
