@@ -11,7 +11,7 @@
 
 #include "unity.h"
 #include "MagnetoSensorNull.hpp"
-#include "test_magneto_sensor.hpp"
+#include "TestMagnetoSensor.hpp"
 
 #ifdef ESP_PLATFORM
 #define DEFINE_TEST_CASE(test_name) \

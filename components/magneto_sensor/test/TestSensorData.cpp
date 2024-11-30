@@ -10,7 +10,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 #include "unity.h"
-#include "test_magneto_sensor.hpp"
+#include "TestMagnetoSensor.hpp"
 
 namespace magneto_sensor {
     DEFINE_TEST_CASE(sensor_data_saturated) {

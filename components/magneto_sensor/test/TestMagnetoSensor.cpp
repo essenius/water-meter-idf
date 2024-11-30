@@ -11,7 +11,7 @@
 
 #include "unity.h"
 #include "I2cBusMock.hpp"
-#include "test_magneto_sensor.hpp"
+#include "TestMagnetoSensor.hpp"
 
 namespace magneto_sensor {
 

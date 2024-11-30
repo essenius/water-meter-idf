@@ -1,5 +1,5 @@
 #include "I2cBus.hpp"
-#include "test_i2c_bus.hpp"
+#include "TestI2cBus.hpp"
 #include <unity.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -15,7 +15,7 @@
 
 namespace i2c {
 
-    constexpr const char* kI2cTag = "test_i2c_bus";
+    constexpr const char* kI2cTag = "TestI2cBus";
 
     DEFINE_TEST_CASE(is_present) {
         // make sure an HMC sensor is on the bus when running this test

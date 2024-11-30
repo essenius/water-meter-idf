@@ -11,11 +11,11 @@
 
 #include <limits.h>
 #include "unity.h"
-#include "pub_sub.hpp"
+#include "PubSub.hpp"
 #include <atomic>
 #include <thread>
 #include <esp_log.h>
-#include "test_pub_sub.hpp"
+#include "TestPubSub.hpp"
 
 
 namespace pub_sub {

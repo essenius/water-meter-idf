@@ -12,7 +12,7 @@
 #include "unity.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "pub_sub.hpp"
+#include "PubSub.hpp"
 #include "test_pub_sub.hpp"
 #include "test_i2c_bus.hpp"
 #include "test_magneto_sensor.hpp"
