@@ -25,7 +25,10 @@
 #include <format>
 #include <atomic>
 
+
 namespace pub_sub {
+
+    constexpr uint16_t AllTopics = UINT16_MAX;
 
     struct Coordinate {
         uint16_t x;
@@ -85,10 +88,9 @@ namespace pub_sub {
         ~PubSub();
 
         void publish(uint16_t topic, const Payload& message, const SubscriberCallbackHandle& source = nullptr);
-        void subscribe(uint16_t topic, const SubscriberCallbackHandle& callback);
-        void unsubscribe(uint16_t topic, const SubscriberCallbackHandle& callback);
+        void subscribe(const SubscriberCallbackHandle& callback, uint16_t topic);
+        void unsubscribe(const SubscriberCallbackHandle& callback, uint16_t topic = AllTopics);
         void unsubscribeAll();
-        void unsubscribe(const SubscriberCallbackHandle& callback);
         bool isIdle() const;
         void receive();
         void waitForIdle() const;

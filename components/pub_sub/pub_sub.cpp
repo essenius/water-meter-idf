@@ -87,7 +87,7 @@ namespace pub_sub {
         return true;        
     }
 
-    void PubSub::subscribe(uint16_t topic, const SubscriberCallbackHandle& callback) {
+    void PubSub::subscribe(const SubscriberCallbackHandle& callback, uint16_t topic) {
         for (auto& subscriberMap: m_subscribers) {
             if (addSubscriberToExistingTopic(subscriberMap, topic, callback)) return;
         }
@@ -105,10 +105,8 @@ namespace pub_sub {
         );
     }
 
-    // make sure the mutex is taken before this runs
+    // expects the mutex to be taken
     void PubSub::removeSubscriber(const SubscriberCallbackHandle& callback, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
-        const uint16_t topic = subscriberMap.topic;
-
         // Manually iterate and remove subscribers that reference the specified callback
         for (auto it = subscriberMap.subscribers.begin(); it != subscriberMap.subscribers.end(); ++it ) {
             if (static_cast<void*>(*it) == static_cast<void*>(callback)) {
@@ -129,6 +127,7 @@ namespace pub_sub {
         for (;;);
     }
 
+    // expects the mutex to be taken
     void PubSub::removeMapsToClear(const std::vector<SubscriberMap*>& mapsToClear) {
         // remove all maps to clear from m_subscribers
         for (auto* map : mapsToClear) {
@@ -142,14 +141,14 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::unsubscribe(uint16_t topic, const SubscriberCallbackHandle& callback) {
+    void PubSub::unsubscribe(const SubscriberCallbackHandle& callback, uint16_t topic) {
         constexpr const char* kTag = "unsubscribe";
 
         doInMutex(
             [this, topic, callback]() {
                 std::vector<SubscriberMap*> mapsToClear;
                 for (auto& subscriberMap : m_subscribers) {
-                    if (subscriberMap.topic == topic) {
+                    if (topic == AllTopics || subscriberMap.topic == topic) {
                         removeSubscriber(callback, subscriberMap, mapsToClear);
                     }
                 }
@@ -169,8 +168,7 @@ namespace pub_sub {
         m_subscribers.clear(); */
     }
 
-    // unsubscribe a subscriber from all topics
-    void PubSub::unsubscribe(const SubscriberCallbackHandle& callback) {
+/*     void PubSub::unsubscribe(const SubscriberCallbackHandle& callback) {
         constexpr const char* kTag = "unsubscribe";
 
         doInMutex(
@@ -188,7 +186,7 @@ namespace pub_sub {
             kTag, 
             "all"
         );
-    }
+    } */
 
     bool PubSub::isIdle() const {
         return uxQueueMessagesWaiting(m_message_queue) == 0 && !m_processing;
@@ -220,7 +218,6 @@ namespace pub_sub {
     }
 
     void PubSub::eventLoop(void* pubsubInstance) { 
-        constexpr const char* kTag = "eventLoop";
         const auto me = static_cast<PubSub*>(pubsubInstance);
 #ifdef ESP_PLATFORM
         while(true) {
@@ -232,23 +229,19 @@ namespace pub_sub {
     }
 
     void PubSub::receive() {
-        constexpr const char* kTag = "receive";
         Message msg;
-        ESP_LOGI(kTag, "Waiting to receive message");
         // not using doInMutex here, as we don't want to block the event loop
         if (xSemaphoreTake(m_mutex, 2* MutexTimeout) == pdTRUE) {
             if (xQueueReceive(m_message_queue, &msg, 0) == pdFAIL) {
                 // nothing waiting in the queue
                 m_processing = false;
                 xSemaphoreGive(m_mutex);                
-                ESP_LOGI(kTag, "No message received.");               
                 vTaskDelay(pdMS_TO_TICKS(10)); 
             } else {
                 m_processing = true;
                 char buffer[100];
                 std::visit(MessageVisitor(buffer), msg.message);
                 xSemaphoreGive(m_mutex);                
-                ESP_LOGI(kTag, "Receive: processing callback %p, topic %d, message '%s'", msg.source, msg.topic, buffer);	
                 processMessage(msg);
                 m_processing = false;
             }

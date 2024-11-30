@@ -29,7 +29,6 @@ namespace pub_sub {
     public:
         explicit TestSubscriber(int id) : _id(id) , _messageVisitor(_buffer) {}
         const char* getBuffer() const { 
-            ESP_LOGI(TAG, "Buffer: %s", _buffer);
             return _buffer; 
         }
         uint32_t getCallCount() const { return _callCount; }
@@ -44,7 +43,7 @@ namespace pub_sub {
             _topic = topic;
             _callCount++;
             std::visit(_messageVisitor, message);
-            ESP_LOGW("subscriberCallback", "id=%d, topic=%d, message='%s'\n", _id, topic, _buffer);
+            ESP_LOGI("subscriberCallback", "id=%d, topic=%d, message='%s'", _id, topic, _buffer);
         }
 
         SubscriberCallbackHandle getCallback() {
@@ -69,18 +68,17 @@ namespace pub_sub {
     std::atomic<bool> terminateEventLoop(false);
 
     DEFINE_TEST_CASE(all_payload_types) {
-        const char* kTestTag = "testPubSub-AllPayloadTypes";
-        ESP_LOGI(kTestTag, "*** Starting all payload types test ***\n");
+        const char* kTestTag = "AllPayloadTypes";
         PubSub pubsub;
         TestSubscriber subscriber(1);
 
         SubscriberCallbackHandle callback = subscriber.getCallback();
 
         // subscribe before event loop started should work
-        pubsub.subscribe(100, callback);
+        pubsub.subscribe(callback, 100);
 
         // subscribe after event loop started should work too
-        pubsub.subscribe(200, callback);
+        pubsub.subscribe(callback, 200);
 
         ESP_LOGI(kTestTag, "Sending int message with subscriber");
 
@@ -124,8 +122,7 @@ namespace pub_sub {
     }
 
     DEFINE_TEST_CASE(multiple_subscribers) {
-        constexpr const char* kTestTag = "testPubSub-MultipleSubscribers";
-        ESP_LOGI(kTestTag, "\n*** Starting multiple subscribers test ***\n");
+        constexpr const char* kTestTag = "MultipleSubscribers";
         PubSub pubsub;
         TestSubscriber subscriber1(1);
         TestSubscriber subscriber2(2);
@@ -134,8 +131,6 @@ namespace pub_sub {
         SubscriberCallbackHandle callback1 = subscriber1.getCallback();
         SubscriberCallbackHandle callback2 = subscriber2.getCallback();
         SubscriberCallbackHandle callback3 = subscriber3.getCallback();
-
-        ESP_LOGW(kTestTag, "Subscribers created: 1=%p, 2=%p, 3=%p", callback1, callback2, callback3);
 
         // Define the subscriptions
         std::vector<std::pair<Topic, SubscriberCallbackHandle>> subscriptions = {
@@ -147,7 +142,7 @@ namespace pub_sub {
         };
 
         for (const auto& [topic, callback] : subscriptions) {
-            pubsub.subscribe(topic, callback);
+            pubsub.subscribe(callback, topic);
         }
 
         pubsub.publish(2, 42, callback1);
@@ -162,8 +157,8 @@ namespace pub_sub {
         // test that unsubscribe works
         subscriber2.reset();
         subscriber3.reset();
-        pubsub.unsubscribe(2, callback1);
-        pubsub.unsubscribe(2, callback3); 
+        pubsub.unsubscribe(callback1, 2);
+        pubsub.unsubscribe(callback3, 2); 
         ESP_LOGI(kTestTag, "Testing unsubscribe. Sending topic 2 from callback 2 which should not be picked up.");
         pubsub.publish(2, 10, callback2);
         pubsub.waitForIdle();
@@ -191,7 +186,7 @@ namespace pub_sub {
         subscriber1.reset();
 
         // subscribing twice still sends one message
-    	pubsub.subscribe(1, callback1);
+    	pubsub.subscribe(callback1, 1);
         ESP_LOGI(kTestTag, "Sending topic 1 from callback 2 to ensure that subscribing twice only results in one execution");
 
         pubsub.publish(1, 327, callback2);
@@ -201,21 +196,21 @@ namespace pub_sub {
         subscriber1.reset();
 
         // unsubscribing stops update
-        pubsub.unsubscribe(2, callback2);
+        pubsub.unsubscribe(callback2, 2);
 
         pubsub.publish(2, 49);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called (not subscribed to 2 anymore)");
 
         // unsubscribing a topic not subscribed to is handled gracefully
-        pubsub.unsubscribe(2, callback2);
+        pubsub.unsubscribe(callback2, 2);
 
         ESP_LOGI(kTestTag, "Sending topic 2 to ensure that unsubscribing from a non-subscribed topic has no effect");
         pubsub.publish(2, 51);
         pubsub.waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber2.getCallCount(), "Subscriber2 was not called after second unsubscribe");
 
-        pubsub.subscribe(3, callback1);
+        pubsub.subscribe(callback1, 3);
 
         ESP_LOGI(kTestTag, "Sending topic 3 from callback2 to check the new subscription gets picked up next to the one that was there");
         pubsub.publish(3, 51, callback2);

@@ -58,7 +58,7 @@ inline bool xQueueSend(QueueHandle_t& queue, const void* const item, int) {
     try {
         auto real_item = static_cast<const uint8_t*>(item);
         auto copied_item = std::make_shared<std::vector<uint8_t>>(real_item, real_item + ItemSize);
-        displayCopiedItem(copied_item);
+        // displayCopiedItem(copied_item);
         queue->push(copied_item);
     } catch (const std::bad_alloc& e) {
         ESP_LOGE(kTag, "Bad allocation Exception in xQueueSend: %s", e.what());
