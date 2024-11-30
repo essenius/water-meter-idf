@@ -34,7 +34,7 @@ namespace magneto_sensor {
     DEFINE_TEST_CASE(hmc_power_on) {
         i2c::I2cBus i2cBus; 
         MagnetoSensorHmc sensor(&i2cBus);       
-        TEST_ASSERT_TRUE_MESSAGE(sensor.handlePowerOn(), "Sensor Test passed");
+        TEST_ASSERT_TRUE_MESSAGE(sensor.handlePowerOn(), "Power On Test passed");
     }
 
     DEFINE_TEST_CASE(hmc_increase_range) {

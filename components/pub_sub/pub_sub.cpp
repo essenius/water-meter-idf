@@ -32,7 +32,6 @@ namespace pub_sub {
     }
 
     PubSub::~PubSub() {
-        constexpr const char* kTag = "~PubSub";
         unsubscribeAll();
         if (m_message_queue != nullptr) {
             vQueueDelete(m_message_queue);
@@ -161,32 +160,22 @@ namespace pub_sub {
     }
 
     void PubSub::unsubscribeAll() {
-        ESP_LOGI("UnsubscribeAll", "Unsubscribing all (no-op)");
-        /*for (auto& subscriberMap: m_subscribers) {
-            subscriberMap.subscribers.clear();
-        }
-        m_subscribers.clear(); */
-    }
-
-/*     void PubSub::unsubscribe(const SubscriberCallbackHandle& callback) {
-        constexpr const char* kTag = "unsubscribe";
-
+        ESP_LOGI("UnsubscribeAll", "Unsubscribing all");
+        dump_subscribers("unsubscribeAll before");
         doInMutex(
-            [this, callback]() {
-                std::vector<SubscriberMap*> mapsToClear;
-
-                for (auto& subscriberMap : m_subscribers) {
-                    removeSubscriber(callback, subscriberMap, mapsToClear);
+            [this]() {
+                for (auto& subscriberMap: m_subscribers) {
+                    subscriberMap.subscribers.clear();
                 }
-
-                // remove all maps to clear from m_subscribers
-                removeMapsToClear(mapsToClear);
+                m_subscribers.clear();
                 return true;
             }, 
-            kTag, 
-            "all"
+            "hello", 
+            "hello"
         );
-    } */
+
+        dump_subscribers("unsubscribeAll after");
+    }
 
     bool PubSub::isIdle() const {
         return uxQueueMessagesWaiting(m_message_queue) == 0 && !m_processing;

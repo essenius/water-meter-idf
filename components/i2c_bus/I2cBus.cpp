@@ -16,15 +16,25 @@ namespace i2c {
         busConfig.intr_priority = 0;
         busConfig.trans_queue_depth = 0; // synchronous operation
         busConfig.flags.enable_internal_pullup = true;
+        ESP_LOGI("I2cBus", "Creating I2C bus on SDA %d, SCL %d", sda, scl);
         ESP_ERROR_CHECK(i2c_new_master_bus(&busConfig, &m_busHandle));
     }
 
     I2cBus::~I2cBus() {
+        ESP_LOGI(kTag, "Destroying I2CBus");
         if (m_device) {
-            i2c_master_bus_rm_device(m_device);
+            ESP_LOGI("I2cBus", "Removing I2C device");
+            auto err = i2c_master_bus_rm_device(m_device);
+            if (err != ESP_OK) {
+                ESP_LOGE(kTag, "Failed to remove I2C device: %s", esp_err_to_name(err));
+            }
         }
         if (m_busHandle) {
-            i2c_del_master_bus(m_busHandle);
+            ESP_LOGI("I2cBus", "Deleting I2C master bus");
+            auto err = i2c_del_master_bus(m_busHandle);
+            if (err != ESP_OK) {
+                ESP_LOGE(kTag, "Failed to delete I2C bus: %s", esp_err_to_name(err));
+            }
         }
     }
 
@@ -41,8 +51,12 @@ namespace i2c {
         i2c_device_config_t deviceConfig;
         deviceConfig.device_address = m_address;
         deviceConfig.scl_speed_hz = kFrequency;
-        auto returnValue = i2c_master_bus_add_device(m_busHandle, &deviceConfig, &m_device);
-        return returnValue;
+        auto err = i2c_master_bus_add_device(m_busHandle, &deviceConfig, &m_device);
+        if (err != ESP_OK) {
+            ESP_LOGE(kTag, "Failed to add I2C device: %s", esp_err_to_name(err));
+            return err;
+        }
+        return ESP_OK;
     }
 
     esp_err_t I2cBus::endTransmission() {

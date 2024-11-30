@@ -1,5 +1,6 @@
 #pragma once
 
+#ifndef ESP_PLATFORM
 namespace i2c {
     void test_is_present();
     void test_read_write_register();
@@ -11,3 +12,4 @@ namespace i2c {
         RUN_TEST(test_hmc_read);
     }
 }
+#endif

@@ -24,6 +24,7 @@
 #include <memory>
 #include <format>
 #include <atomic>
+#include <cstring>
 
 
 namespace pub_sub {

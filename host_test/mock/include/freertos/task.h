@@ -8,33 +8,30 @@
 #include <memory>
 #include <cstdio>
 #include "freeRTOS.h"
-#include "../esp_log.h"
+#include "esp_log.h"
 
 using TaskFunction_t = std::function<void(void*)>;
 using TaskHandle_t = std::shared_ptr<struct TaskControlBlock>;
 
-constexpr const char* TTAG = "task";
+constexpr const char* kTaskTag = "task";
 
 struct TaskControlBlock {
     std::thread thread;
-    //std::shared_ptr<std::atomic<bool>> terminateFlag;
 };
 
 static std::unordered_map<std::thread::id, TaskHandle_t> task_threads;
 
 
 inline void xTaskCreate(TaskFunction_t task, const char* name, int, void* param, int, TaskHandle_t* taskHandle) {
-    //auto terminateFlag = std::make_shared<std::atomic<bool>>(false);
     auto tcb = std::make_shared<TaskControlBlock>();
-    //tcb->terminateFlag = terminateFlag;
     tcb->thread = std::thread([task, param, tcb]() {
         task(param);
-       ESP_LOGI(TTAG, "Task terminated");
+       ESP_LOGD(kTaskTag, "Task terminated");
     });
     task_threads[tcb->thread.get_id()] = tcb;
     if (taskHandle) {
         *taskHandle = tcb;
-    ESP_LOGI(TTAG, "Created task %s (%p)", name, tcb.get());
+    ESP_LOGD(kTaskTag, "Created task %s (%p)", name, tcb.get());
     }
 
 }
@@ -45,7 +42,7 @@ inline void vTaskDelay(int ticks) {
 
 // delete a task by handle. Expects the handle to be valid. Internal use only.
 inline void deleteTask(TaskHandle_t taskHandle) {
-    ESP_LOGI(TTAG, "Deleting task %p", taskHandle.get());
+    ESP_LOGD(kTaskTag, "Deleting task %p", taskHandle.get());
     if (taskHandle->thread.joinable()) {
         taskHandle->thread.join();
     }

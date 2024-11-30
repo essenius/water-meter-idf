@@ -82,7 +82,7 @@ namespace magneto_sensor {
 
     void MagnetoSensorHmc::getTestMeasurement(SensorData& reading) {
         startMeasurement();
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(10));
         read(reading);
     }
 
@@ -109,7 +109,7 @@ namespace magneto_sensor {
         sample.x = getWord(output);
         sample.z = getWord(output + 2);
         sample.y = getWord(output + 4);
-        ESP_LOGD(kTag, "Read sample x: 0x%04x, y: 0x%04x, z: 0x%04x", sample.x, sample.y, sample.z);
+        ESP_LOGI(kTag, "Read sample x: 0x%04x, y: 0x%04x, z: 0x%04x", sample.x, sample.y, sample.z);
         return true;
     }
 
@@ -127,6 +127,8 @@ namespace magneto_sensor {
         constexpr short LowThreshold = 243;
         constexpr short HighThreshold = 575;
 
+        ESP_LOGI(kTag, "X: %d, Y: %d, Z: %d\n", sample.x, sample.y, sample.z);
+
         return
             sample.x >= LowThreshold && sample.x <= HighThreshold &&
             sample.y >= LowThreshold && sample.y <= HighThreshold &&
@@ -137,21 +139,17 @@ namespace magneto_sensor {
         SensorData sample{};
 
         configure(HmcRange::Range4_7, HmcBias::Positive);
-
         // read old value (still with old settings) 
         getTestMeasurement(sample);
         // the first one with new settings may still be a bit off
         getTestMeasurement(sample);
-
         // now do the test
         getTestMeasurement(sample);
         const bool passed = testInRange(sample);
-
         // end self test mode
         configure(m_range, HmcBias::None);
         // skip the final measurement with the old gain
-        getTestMeasurement(sample);
-
+        getTestMeasurement(sample);        
         return passed;
     }
 
