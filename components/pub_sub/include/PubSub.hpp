@@ -42,16 +42,22 @@ namespace pub_sub {
     };
     using Payload = std::variant<int, float, const char*, Coordinate>;
     using Topic = uint16_t;
-    using SubscriberCallback = std::function<void(const Topic, const Payload&)>;
-    using SubscriberCallbackHandle = SubscriberCallback*;
     
+    class Subscriber {
+    public:
+        virtual ~Subscriber() = default;
+        virtual void subscriberCallback(const Topic topic, const Payload& payload) = 0;
+    };
+
+    using SubscriberHandle = Subscriber*;
+
     struct SubscriberMap {
         uint16_t topic;
-        std::vector<SubscriberCallbackHandle> subscribers;
+        std::vector<SubscriberHandle> subscribers;
     };
 
     struct Message {
-        SubscriberCallbackHandle source;
+        SubscriberHandle source;
         Payload message;
         uint16_t topic;
     };
@@ -82,15 +88,15 @@ namespace pub_sub {
             char *m_buffer;
             size_t m_bufferSize = BufferSize;
     };
-
+    
     class PubSub {
     public:
         PubSub();
         ~PubSub();
 
-        void publish(uint16_t topic, const Payload& message, const SubscriberCallbackHandle& source = nullptr);
-        void subscribe(const SubscriberCallbackHandle& callback, uint16_t topic);
-        void unsubscribe(const SubscriberCallbackHandle& callback, uint16_t topic = AllTopics);
+        void publish(uint16_t topic, const Payload& message, const SubscriberHandle source = nullptr);
+        void subscribe(const SubscriberHandle subscriber, uint16_t topic);
+        void unsubscribe(const SubscriberHandle subscriber, uint16_t topic = AllTopics);
         void unsubscribeAll();
         bool isIdle() const;
         void receive();
@@ -98,9 +104,9 @@ namespace pub_sub {
         void dump_subscribers(const char* tag = "dump") const;
 
     private:
-        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberCallbackHandle& callback);
+        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberHandle subscriber);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
-        bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberCallbackHandle& callback) const;
+        bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const;
         void removeMapsToClear(const std::vector<SubscriberMap *> &mapsToClear);
 
         template <typename Func>
@@ -120,7 +126,7 @@ namespace pub_sub {
 #endif
         static void eventLoop(void* pubsubInstance);
         void processMessage(const Message &msg) const;
-        void removeSubscriber(const SubscriberCallbackHandle& callback, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
+        void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
         [[noreturn]] void throwRuntimeError(const std::string& context, const std::string& detail) const;
 
         std::vector<SubscriberMap> m_subscribers;

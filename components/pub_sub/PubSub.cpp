@@ -43,7 +43,7 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::publish(uint16_t topic, const Payload& message, const SubscriberCallbackHandle& source) {
+    void PubSub::publish(uint16_t topic, const Payload& message, const SubscriberHandle source) {
 
         constexpr const char* kTag = "publish";
 
@@ -67,17 +67,17 @@ namespace pub_sub {
         );
     }
 
-    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberCallbackHandle& callback) {
+    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberHandle subscriber) {
         // note: must be called with the mutex taken
         constexpr const char* kTag = "addSubscriberToExistingTopic";
         if (subscriberMap.topic != topic) return false;
-        if (doesCallbackExist(subscriberMap, callback)) {
+        if (doesCallbackExist(subscriberMap, subscriber)) {
             return true; // do not add it again
         }
 
         return doInMutex(
-            [&subscriberMap, &callback]() {
-                subscriberMap.subscribers.push_back(callback);
+            [&subscriberMap, &subscriber]() {
+                subscriberMap.subscribers.push_back(subscriber);
                 return true;
             }, 
             kTag, 
@@ -86,17 +86,17 @@ namespace pub_sub {
         return true;        
     }
 
-    void PubSub::subscribe(const SubscriberCallbackHandle& callback, uint16_t topic) {
+    void PubSub::subscribe(const SubscriberHandle subscriber, uint16_t topic) {
         for (auto& subscriberMap: m_subscribers) {
-            if (addSubscriberToExistingTopic(subscriberMap, topic, callback)) return;
+            if (addSubscriberToExistingTopic(subscriberMap, topic, subscriber)) return;
         }
         // New topic, add to the map
-        SubscriberMap subscriber;
-        subscriber.topic = topic;
+        SubscriberMap subscriberMap;
+        subscriberMap.topic = topic;
         doInMutex(
-            [this, &subscriber, &callback]() {
-                subscriber.subscribers.push_back(callback);
-                m_subscribers.push_back(subscriber);
+            [this, &subscriberMap, subscriber]() {
+                subscriberMap.subscribers.push_back(subscriber);
+                m_subscribers.push_back(subscriberMap);
                 return true;
             }, 
             "addSubscriberToNewTopic", 
@@ -105,10 +105,10 @@ namespace pub_sub {
     }
 
     // expects the mutex to be taken
-    void PubSub::removeSubscriber(const SubscriberCallbackHandle& callback, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
+    void PubSub::removeSubscriber(const SubscriberHandle subscriber, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
         // Manually iterate and remove subscribers that reference the specified callback
         for (auto it = subscriberMap.subscribers.begin(); it != subscriberMap.subscribers.end(); ++it ) {
-            if (static_cast<void*>(*it) == static_cast<void*>(callback)) {
+            if (static_cast<void*>(*it) == static_cast<void*>(subscriber)) {
                 it = subscriberMap.subscribers.erase(it);
                 break;
             }
@@ -140,15 +140,15 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::unsubscribe(const SubscriberCallbackHandle& callback, uint16_t topic) {
+    void PubSub::unsubscribe(const SubscriberHandle subscriber, uint16_t topic) {
         constexpr const char* kTag = "unsubscribe";
 
         doInMutex(
-            [this, topic, callback]() {
+            [this, topic, subscriber]() {
                 std::vector<SubscriberMap*> mapsToClear;
                 for (auto& subscriberMap : m_subscribers) {
                     if (topic == AllTopics || subscriberMap.topic == topic) {
-                        removeSubscriber(callback, subscriberMap, mapsToClear);
+                        removeSubscriber(subscriber, subscriberMap, mapsToClear);
                     }
                 }
                 removeMapsToClear(mapsToClear);
@@ -192,14 +192,14 @@ namespace pub_sub {
     void PubSub::callSubscriber(const SubscriberMap &subscriberMap, const Message& msg) const {
         for (const auto &subscriber : subscriberMap.subscribers) {
             if (msg.source == nullptr || msg.source != subscriber) {
-                (*subscriber)(msg.topic, msg.message);
+                subscriber->subscriberCallback(msg.topic, msg.message);
             }
         }
     }
 
-    bool PubSub::doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberCallbackHandle& callback) const {
-        for (const auto& existingCallback : subscriberMap.subscribers) {
-            if (existingCallback == callback) {
+    bool PubSub::doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const {
+        for (const auto& existingSubscriber : subscriberMap.subscribers) {
+            if (existingSubscriber == subscriber) {
                 return true;
             }
         }

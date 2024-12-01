@@ -36,6 +36,8 @@
 *[Bb]uild/
 managed_components/
 
+dependencies.lock
+
 *.old
 *.bak
 

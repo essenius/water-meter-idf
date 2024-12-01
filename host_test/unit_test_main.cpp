@@ -13,9 +13,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "PubSub.hpp"
-#include "test_pub_sub.hpp"
-#include "test_i2c_bus.hpp"
-#include "test_magneto_sensor.hpp"
+#include "TestPubSub.hpp"
+#include "TestI2cBus.hpp"
+#include "TestMagnetoSensor.hpp"
 #include "esp_log.h"
 #include "driver/i2c_master.h"
 
