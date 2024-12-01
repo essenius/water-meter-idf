@@ -29,20 +29,51 @@
 
 namespace pub_sub {
 
-    constexpr uint16_t AllTopics = UINT16_MAX;
-
-    struct Coordinate {
+    struct IntCoordinate {
         uint16_t x;
         uint16_t y;
 
-        friend std::ostream& operator<<(std::ostream& os, const Coordinate& coord) {
+        IntCoordinate() : x(0), y(0) {}
+        IntCoordinate(int16_t xIn, int16_t yIn) : x(xIn), y(yIn) {}
+
+        // we need this to pass coordinates in a memory efficient way but still keep reasonable accuracy
+        static IntCoordinate times10(const double xIn, const double yIn) {
+            return {static_cast<int16_t>(xIn * 10), static_cast<int16_t>(yIn * 10)};
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const IntCoordinate& coord) {
             os << "(" << coord.x << ", " << coord.y << ")";
             return os;
         }
     };
-    using Payload = std::variant<int, float, const char*, Coordinate>;
-    using Topic = uint16_t;
     
+    using Payload = std::variant<int, float, const char*, IntCoordinate>;
+
+    enum class Topic : uint8_t {
+        None = 0,
+        Anomaly,
+        Drifted,
+        NoFit,
+        Pulse,
+        Sample,
+        SensorWasReset,
+        AllTopics = UINT8_MAX
+    };
+    
+        constexpr const char* toCString(Topic topic) {
+        switch (topic) {
+            case Topic::None: return "None";
+            case Topic::Anomaly: return "Anomaly";
+            case Topic::Drifted: return "Drifted";
+            case Topic::NoFit: return "NoFit";
+            case Topic::Pulse: return "Pulse";
+            case Topic::Sample: return "Sample";
+            case Topic::SensorWasReset: return "SensorWasReset";
+            case Topic::AllTopics: return "AllTopics";
+            default: return "Unknown";
+        }
+    }
+
     class Subscriber {
     public:
         virtual ~Subscriber() = default;
@@ -52,14 +83,14 @@ namespace pub_sub {
     using SubscriberHandle = Subscriber*;
 
     struct SubscriberMap {
-        uint16_t topic;
+        Topic topic;
         std::vector<SubscriberHandle> subscribers;
     };
 
     struct Message {
         SubscriberHandle source;
         Payload message;
-        uint16_t topic;
+        Topic topic;
     };
 
     template <size_t BufferSize>
@@ -80,7 +111,7 @@ namespace pub_sub {
                 m_buffer[m_bufferSize] = '\0';
             }
 
-            void operator()(const Coordinate& value) const {
+            void operator()(const IntCoordinate& value) const {
                 snprintf(m_buffer, m_bufferSize - 1, "%d, %d", value.x, value.y);
             }
 
@@ -94,9 +125,9 @@ namespace pub_sub {
         PubSub();
         ~PubSub();
 
-        void publish(uint16_t topic, const Payload& message, const SubscriberHandle source = nullptr);
-        void subscribe(const SubscriberHandle subscriber, uint16_t topic);
-        void unsubscribe(const SubscriberHandle subscriber, uint16_t topic = AllTopics);
+        void publish(Topic topic, const Payload& message, const SubscriberHandle source = nullptr);
+        void subscribe(const SubscriberHandle subscriber, Topic topic);
+        void unsubscribe(const SubscriberHandle subscriber, Topic topic = Topic::AllTopics);
         void unsubscribeAll();
         bool isIdle() const;
         void receive();
@@ -104,7 +135,7 @@ namespace pub_sub {
         void dump_subscribers(const char* tag = "dump") const;
 
     private:
-        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberHandle subscriber);
+        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
         bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const;
         void removeMapsToClear(const std::vector<SubscriberMap *> &mapsToClear);

@@ -43,7 +43,7 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::publish(uint16_t topic, const Payload& message, const SubscriberHandle source) {
+    void PubSub::publish(Topic topic, const Payload& message, const SubscriberHandle source) {
 
         constexpr const char* kTag = "publish";
 
@@ -57,17 +57,17 @@ namespace pub_sub {
                     char buffer[100];
                     MessageVisitor visitor(buffer);
                     std::visit(visitor, message);
-                    throwRuntimeError(kTag, "Failed to publish topic " + std::to_string(msg.topic) + ", message: " + buffer);
+                    throwRuntimeError(kTag, std::string("Failed to publish topic ") + toCString(topic) + ", message: " + buffer);
                 }
                 m_processing = true;
                 return true;
             }, 
             kTag,
-            std::to_string(topic).c_str()
+            toCString(topic)
         );
     }
 
-    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, uint16_t topic, const SubscriberHandle subscriber) {
+    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber) {
         // note: must be called with the mutex taken
         constexpr const char* kTag = "addSubscriberToExistingTopic";
         if (subscriberMap.topic != topic) return false;
@@ -81,12 +81,12 @@ namespace pub_sub {
                 return true;
             }, 
             kTag, 
-            std::to_string(topic).c_str()
+            toCString(topic)
         );
         return true;        
     }
 
-    void PubSub::subscribe(const SubscriberHandle subscriber, uint16_t topic) {
+    void PubSub::subscribe(const SubscriberHandle subscriber, Topic topic) {
         for (auto& subscriberMap: m_subscribers) {
             if (addSubscriberToExistingTopic(subscriberMap, topic, subscriber)) return;
         }
@@ -100,7 +100,7 @@ namespace pub_sub {
                 return true;
             }, 
             "addSubscriberToNewTopic", 
-            std::to_string(topic).c_str()
+            toCString(topic)
         );
     }
 
@@ -140,14 +140,14 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::unsubscribe(const SubscriberHandle subscriber, uint16_t topic) {
+    void PubSub::unsubscribe(const SubscriberHandle subscriber, Topic topic) {
         constexpr const char* kTag = "unsubscribe";
 
         doInMutex(
             [this, topic, subscriber]() {
                 std::vector<SubscriberMap*> mapsToClear;
                 for (auto& subscriberMap : m_subscribers) {
-                    if (topic == AllTopics || subscriberMap.topic == topic) {
+                    if (topic == Topic::AllTopics || subscriberMap.topic == topic) {
                         removeSubscriber(subscriber, subscriberMap, mapsToClear);
                     }
                 }
@@ -155,7 +155,7 @@ namespace pub_sub {
                 return true;
             }, 
             kTag, 
-            std::to_string(topic).c_str()
+            toCString(topic)
         );
     }
 
@@ -250,7 +250,7 @@ namespace pub_sub {
         constexpr const char* kTag = "dump_subscribers";
         ESP_LOGI(kTag, "Dumping subscribers (tag %s)", tag);
         for (auto const& subscriberMap: m_subscribers) {
-            ESP_LOGI(kTag, "Topic %d", subscriberMap.topic);
+            ESP_LOGI(kTag, "Topic %d", static_cast<uint8_t>(subscriberMap.topic));
             for (auto const& subscriber: subscriberMap.subscribers) {
                 ESP_LOGI(kTag, "  Subscriber %p", subscriber);
             }

@@ -1,0 +1,10 @@
+dependencies:
+  matrix: 
+    path: src
+    git: https://github.com/essenius/Matrix.git
+    version: v0.2.7
+  ellipse_fit: 
+    path: src
+    git: https://github.com/essenius/EllipseFit.git
+    version: v0.2.6
+
