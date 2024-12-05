@@ -89,7 +89,6 @@ namespace flow_detector_test {
 
 	void expectAnomalyAndSkipped(const FlowDetector& flowDetector, std::shared_ptr<pub_sub::PubSub> pubsub, const int16_t x, const int16_t y) {
 		pubsub->publish(Topic::Sample, IntCoordinate(x, y));
-		printf("Published %d, %d\n", x, y);
 		pubsub->waitForIdle();
 		TEST_ASSERT_TRUE_MESSAGE(flowDetector.foundAnomaly(), "Anomaly");
 		TEST_ASSERT_TRUE_MESSAGE(flowDetector.wasSkipped(), "Skipped");
@@ -141,9 +140,7 @@ namespace flow_detector_test {
 		EllipseFit ellipseFit;
 		auto pubsub = PubSub::create();
 		FlowDetectorDriver flowDetector(pubsub, ellipseFit);
-		printf("defining subscriber\n");	
 		PulseTestSubscriber subscriber(pubsub);
-		printf("defined subscriber\n");	
 		char cwd[PATH_MAX];
 		if (getcwd(cwd, sizeof(cwd)) != NULL) {
 			printf("Current working dir: %s\n", cwd);
@@ -164,7 +161,6 @@ namespace flow_detector_test {
 		measurements.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 		while (measurements >> measurement.x) {
 			measurements >> measurement.y;
-			printf("Publishing %.2f, %.2f\n", measurement.x, measurement.y);	
 			flowDetector.processMovingAverageSample(measurement);
 		}
 		pubsub->waitForIdle();

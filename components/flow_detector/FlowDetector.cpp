@@ -162,7 +162,6 @@ namespace flow_detector {
 			// reference point is the bottom of the ellipse
 			m_foundPulse = passedBottom(quadrant, quadrantDifference);
 			if (m_foundPulse) {
-				printf("Published C_pulse\n");
 				m_pubsub->publish(Topic::Pulse, true);
 				m_searchingForPulse = false;
 			}
@@ -193,7 +192,6 @@ namespace flow_detector {
 
 		if (isPulse(quadrant)) {
 			m_pubsub->publish(Topic::Pulse, false);
-			printf("Published P_pulse\n");
 			m_searchingForPulse = false;
 		}
 	

@@ -23,7 +23,6 @@ namespace flow_detector_test {
     using pub_sub_test::TestSubscriber;
 
     PulseTestSubscriber::PulseTestSubscriber(std::shared_ptr<pub_sub::PubSub> pubsub, const char* fileName) {
-        printf("PulseTestSubscriber constructor\n");	
 #ifdef ESP_PLATFORM
         m_writeToFile = false;
 #else
@@ -35,7 +34,6 @@ namespace flow_detector_test {
             m_file << "SampleNo,X,Y,Pulse,Anomaly,NoFit,Drift\n";
         }
 
-        printf("PulseTestSubscriber subscribe\n");	
         pubsub->subscribe(this, Topic::Anomaly);
         pubsub->subscribe(this, Topic::Drifted);
         pubsub->subscribe(this, Topic::NoFit);
