@@ -21,6 +21,8 @@
 #endif
 #include <Windows.h>
 #include <psapi.h>
+
+#include <direct.h>
 #endif
 
 #include <fstream>
@@ -50,7 +52,7 @@ namespace flow_detector_test {
 		ESP_LOGW(kTag, "Flow test %s skipped on ESP32", fileName.c_str());
 #else
 	void flowTestWithFile(const std::string& fileName, const ExpectedResult& expectedResult, const unsigned int noiseLimit = 3, const char* outFileName = nullptr) {
-		PubSub pubsub;
+		auto pubsub = PubSub::create();
 		EllipseFit ellipseFit;
 		FlowDetector flowDetector(pubsub, ellipseFit);
 		PulseTestSubscriber pulseClient(pubsub, outFileName);
@@ -63,7 +65,7 @@ namespace flow_detector_test {
 		while (measurements >> measurement.x) {
 			measurements >> measurement.y;
 			measurementCount++;
-			pubsub.publish(Topic::Sample, measurement);
+			pubsub->publish(Topic::Sample, measurement);
 		}
 		pulseClient.close();
 		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.firstPulses, pulseClient.pulses(false), "First Pulses");
@@ -85,9 +87,10 @@ namespace flow_detector_test {
 		);
 	}
 
-	void expectAnomalyAndSkipped(const FlowDetector& flowDetector, PubSub& pubsub, const int16_t x, const int16_t y) {
-		pubsub.publish(Topic::Sample, IntCoordinate(x, y));
+	void expectAnomalyAndSkipped(const FlowDetector& flowDetector, std::shared_ptr<pub_sub::PubSub> pubsub, const int16_t x, const int16_t y) {
+		pubsub->publish(Topic::Sample, IntCoordinate(x, y));
 		printf("Published %d, %d\n", x, y);
+		pubsub->waitForIdle();
 		TEST_ASSERT_TRUE_MESSAGE(flowDetector.foundAnomaly(), "Anomaly");
 		TEST_ASSERT_TRUE_MESSAGE(flowDetector.wasSkipped(), "Skipped");
 	}
@@ -121,13 +124,13 @@ namespace flow_detector_test {
 
 	DEFINE_TEST_CASE(anomaly1) {
 		EllipseFit ellipseFit;
-		PubSub pubsub;
+		auto pubsub = PubSub::create();
 		FlowDetectorDriver flowDetector(pubsub, ellipseFit);
 		TestSubscriber anomalySubscriber(1);
-		pubsub.subscribe(&anomalySubscriber, Topic::Anomaly);
+		pubsub->subscribe(&anomalySubscriber, Topic::Anomaly);
 		flowDetector.begin();
 		flowDetector.addSample({ SHRT_MAX, static_cast<int8_t>(SensorState::PowerError) });
-		pubsub.waitForIdle();
+		pubsub->waitForIdle();
 		TEST_ASSERT_EQUAL_MESSAGE(1, anomalySubscriber.getCallCount(), "Anomaly detected");
 		TEST_ASSERT_EQUAL_MESSAGE(Topic::Anomaly, anomalySubscriber.getTopic(), "Anomaly topic");
 		auto payload = std::get<int>(anomalySubscriber.getPayload());
@@ -136,11 +139,17 @@ namespace flow_detector_test {
 
 	DEFINE_TEST_CASE(bi_quadrant) {
 		EllipseFit ellipseFit;
-		PubSub pubsub;
+		auto pubsub = PubSub::create();
 		FlowDetectorDriver flowDetector(pubsub, ellipseFit);
 		printf("defining subscriber\n");	
 		PulseTestSubscriber subscriber(pubsub);
 		printf("defined subscriber\n");	
+		char cwd[PATH_MAX];
+		if (getcwd(cwd, sizeof(cwd)) != NULL) {
+			printf("Current working dir: %s\n", cwd);
+		} else {
+			perror("getcwd() error");
+		}
 		// Tests all cases where a quadrant may be skipped close to detection of a pulse or a search start
 		// First a circle for fitting, then 12 samples that check whether skipping a quadrant is dealt with right
 		// Test is similar to flowTestWithFile, but bypasses the moving average generation for simpler testing.
@@ -155,9 +164,10 @@ namespace flow_detector_test {
 		measurements.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 		while (measurements >> measurement.x) {
 			measurements >> measurement.y;
+			printf("Publishing %.2f, %.2f\n", measurement.x, measurement.y);	
 			flowDetector.processMovingAverageSample(measurement);
 		}
-
+		pubsub->waitForIdle();
 		TEST_ASSERT_EQUAL_MESSAGE(1, subscriber.pulses(false), "One pulse from the circle");
 		TEST_ASSERT_EQUAL_MESSAGE(4, subscriber.pulses(true), "4 pulses from the crafted test samples");
 		TEST_ASSERT_EQUAL_MESSAGE(0, subscriber.anomalies(), "No anomalies");
@@ -241,7 +251,7 @@ namespace flow_detector_test {
 
 	DEFINE_TEST_CASE(sensor_was_reset) {
 		EllipseFit ellipseFit;
-		PubSub pubsub;
+		auto pubsub = PubSub::create();
 		FlowDetector flowDetector(pubsub, ellipseFit);
 
 		flowDetector.begin(3);
@@ -251,7 +261,7 @@ namespace flow_detector_test {
 			TEST_ASSERT_TRUE_MESSAGE(flowDetector.wasReset(), "Flow detector reset at pass " + pass) ;
 			for (int i = 0; i < 30; i++) {
 				const double angle = i * M_PI / 16.0;
-				pubsub.publish(Topic::Sample, IntCoordinate{static_cast <int16_t>(cos(angle) * Radius), static_cast <int16_t>(sin(angle) * Radius)});
+				pubsub->publish(Topic::Sample, IntCoordinate{static_cast <int16_t>(cos(angle) * Radius), static_cast <int16_t>(sin(angle) * Radius)});
 				if (flowDetector.wasSkipped()) skipped++;
 			}
 
@@ -259,10 +269,10 @@ namespace flow_detector_test {
 			skipped = 0;
 			TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), "Flow detector not reset after adding samples pass " + pass);
 			if (pass == 0) {
-				pubsub.publish(Topic::SensorWasReset, true);
+				pubsub->publish(Topic::SensorWasReset, true);
 			}
 		}
-		pubsub.publish(Topic::Sample, IntCoordinate{Radius, 0});
+		pubsub->publish(Topic::Sample, IntCoordinate{Radius, 0});
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), "Flow detector not reset at end");
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasSkipped(), "sample not skipped at end");
 	}
@@ -270,10 +280,11 @@ namespace flow_detector_test {
 
 	DEFINE_TEST_CASE(anomaly_values_ignored) {
 		EllipseFit ellipseFit;
-		PubSub pubsub;
+		auto pubsub = PubSub::create();
 		FlowDetector flowDetector(pubsub, ellipseFit);
 		flowDetector.begin(3);
-
+		pubsub->waitForIdle();
+		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, SHRT_MAX);
 		expectAnomalyAndSkipped(flowDetector, pubsub, 0, SHRT_MIN);
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MAX, 0);
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, 0);

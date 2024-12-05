@@ -42,7 +42,7 @@ namespace flow_detector {
 
 	constexpr double MinCycleForFit = 0.6;
 
-	FlowDetector::FlowDetector(PubSub& pubsub, EllipseFit& ellipseFit) : m_pubsub(pubsub), m_ellipseFit(ellipseFit) {}
+	FlowDetector::FlowDetector(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit) : m_pubsub(pubsub), m_ellipseFit(ellipseFit) {}
 
 	// Public methods
 
@@ -50,8 +50,8 @@ namespace flow_detector {
 		// we assume that the noise range for X and Y is the same.
 		// If the distance between two points is beyond this, it is beyond noise
 		m_distanceThreshold = sqrt(2.0 * noiseRange * noiseRange) / MovingAverageNoiseReduction;
-		m_pubsub.subscribe(this, Topic::Sample);
-		m_pubsub.subscribe(this, Topic::SensorWasReset);
+		m_pubsub->subscribe(this, Topic::Sample);
+		m_pubsub->subscribe(this, Topic::SensorWasReset);
 	}
 
     void FlowDetector::resetMeasurement() {
@@ -162,7 +162,8 @@ namespace flow_detector {
 			// reference point is the bottom of the ellipse
 			m_foundPulse = passedBottom(quadrant, quadrantDifference);
 			if (m_foundPulse) {
-				m_pubsub.publish(Topic::Pulse, true);
+				printf("Published C_pulse\n");
+				m_pubsub->publish(Topic::Pulse, true);
 				m_searchingForPulse = false;
 			}
 		}
@@ -171,8 +172,8 @@ namespace flow_detector {
 	}
 
 
-	bool FlowDetector::foundPulse(const unsigned int quadrant, const unsigned int previousQuadrant) {
-		m_foundPulse = m_searchingForPulse && quadrant == 2 && previousQuadrant == 3;
+	bool FlowDetector::isPulse(const unsigned int quadrant) {
+		m_foundPulse = m_searchingForPulse && quadrant == 2 && m_previousQuadrant == 3;
 		return m_foundPulse;
 	}
 
@@ -190,8 +191,9 @@ namespace flow_detector {
 
 		// this can be jittery, so use a flag to check whether we counted, and reset the counter at the other side of the ellipse
 
-		if (foundPulse(quadrant, m_previousQuadrant)) {
-			m_pubsub.publish(Topic::Pulse, false);
+		if (isPulse(quadrant)) {
+			m_pubsub->publish(Topic::Pulse, false);
+			printf("Published P_pulse\n");
 			m_searchingForPulse = false;
 		}
 	
@@ -264,7 +266,7 @@ namespace flow_detector {
 			m_foundPulse = false;
 			// if we have too many outliers in a row, we might have drifted (e.g. the sensor was moved), so we reset the measurement
 			if (m_consecutiveOutlierCount > 0 && m_consecutiveOutlierCount % MaxConsecutiveOutliers == 0) {
-			    m_pubsub.publish(Topic::Drifted, m_consecutiveOutlierCount);
+			    m_pubsub->publish(Topic::Drifted, m_consecutiveOutlierCount);
 				resetMeasurement();
 			}
 			return;
@@ -283,7 +285,7 @@ namespace flow_detector {
 	void FlowDetector::reportAnomaly(SensorState state, const uint16_t value) {
 		m_foundAnomaly = true;
 		m_wasSkipped = true;
-		m_pubsub.publish(Topic::Anomaly, static_cast<int16_t>(std::to_underlying(state)) + (value << 4));
+		m_pubsub->publish(Topic::Anomaly, static_cast<int16_t>(std::to_underlying(state)) + (value << 4));
 	}
 
 	int16_t  FlowDetector::noFitParameter(const double angleDistance, const bool fitSucceeded) {
@@ -303,7 +305,7 @@ namespace flow_detector {
         }
         else {
             // we need another round
-            m_pubsub.publish(Topic::NoFit, noFitParameter(m_tangentDistanceTravelled, fitSucceeded));
+            m_pubsub->publish(Topic::NoFit, noFitParameter(m_tangentDistanceTravelled, fitSucceeded));
         }
         m_tangentDistanceTravelled = 0;
     }
@@ -318,12 +320,12 @@ namespace flow_detector {
                 m_confirmedGoodFit = fittedEllipse;
             }
             else {
-                m_pubsub.publish(Topic::NoFit, noFitParameter(m_angleDistanceTravelled, false));
+                m_pubsub->publish(Topic::NoFit, noFitParameter(m_angleDistanceTravelled, false));
             }
         }
         else {
             // even though we didn't run a fit, we mark it as succeeded to see the difference with one that failed a fit
-            m_pubsub.publish(Topic::NoFit, noFitParameter(m_angleDistanceTravelled, true));
+            m_pubsub->publish(Topic::NoFit, noFitParameter(m_angleDistanceTravelled, true));
             m_ellipseFit.begin();
         }
         m_angleDistanceTravelled = 0;

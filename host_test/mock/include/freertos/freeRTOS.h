@@ -13,6 +13,7 @@
 #define configTICK_RATE_HZ 100
 
 using UBaseType_t = unsigned int;
+using BaseType_t = int;
 
 typedef uint32_t TickType_t;
 

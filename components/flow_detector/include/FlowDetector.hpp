@@ -40,7 +40,7 @@ namespace flow_detector {
 
 	class FlowDetector : public pub_sub::Subscriber {
 	public:
-		FlowDetector(PubSub& pubsub, EllipseFit& ellipseFit);
+		FlowDetector(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit);
 		void begin(unsigned int noiseRange = 3);
         bool foundAnomaly() const { return m_foundAnomaly; }
 		bool foundPulse() const { return m_foundPulse; }
@@ -60,7 +60,7 @@ namespace flow_detector {
 		CartesianEllipse executeFit() const;
         void waitToSearch(unsigned int quadrant, unsigned int quadrantDifference);
         void findPulseByCenter(const Coordinate& point);
-        bool foundPulse(const unsigned int quadrant, const unsigned int previousQuadrant);
+        bool isPulse(const unsigned int quadrant);
         bool startSearching(const unsigned int quadrant) const;
         void findPulseByPrevious(const Coordinate &point);
         bool isOutlier(const Coordinate& point);
@@ -78,7 +78,7 @@ namespace flow_detector {
 		static constexpr double MovingAverageNoiseReduction = 2; // = sqrt(MovingAverageSize)
 		static constexpr unsigned int MaxConsecutiveOutliers = 50; // half a second
 
-		PubSub& m_pubsub;
+		std::shared_ptr<pub_sub::PubSub> m_pubsub;
 		EllipseFit& m_ellipseFit;
 		IntCoordinate m_movingAverageArray[MovingAverageSize] = {};
 		int8_t m_movingAverageIndex = 0;

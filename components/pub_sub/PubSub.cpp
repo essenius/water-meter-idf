@@ -20,18 +20,25 @@ namespace pub_sub {
 
     PubSub::PubSub() : m_topic_count(0), m_terminateFlag(false), m_processing(false) {
         m_mutex = xSemaphoreCreateMutex();
+        if (m_mutex == nullptr) {
+            throwRuntimeError("PubSub", "Failed to create mutex");
+        }
         xSemaphoreGive(m_mutex);
 
         m_message_queue = xQueueCreate(100, sizeof(Message));
         if (m_message_queue == nullptr) {
             throwRuntimeError("PubSub", "Failed to create message queue");
         }
-        
-        // Start the event loop task
-        xTaskCreate(eventLoop, "EventLoop", 16384, this, 3, &m_eventLoopTaskHandle);
     }
 
-    PubSub::~PubSub() {
+    std::shared_ptr<PubSub> PubSub::create() {
+        std::shared_ptr<PubSub> instance(new PubSub());
+        instance->begin();
+        return instance;
+    }
+
+    PubSub::~PubSub()
+    {
         unsubscribeAll();
 
         if (m_message_queue != nullptr) {
@@ -47,7 +54,19 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::publish(Topic topic, const Payload& message, const SubscriberHandle source) {
+    void PubSub::begin() {
+        // Start the event loop task
+        auto sharedThis = shared_from_this();
+        if (xTaskCreate([](void* param) { eventLoop(std::weak_ptr<PubSub>(static_cast<PubSub*>(param)->shared_from_this())); }, 
+                        "EventLoop", 16384, this, 3, &m_eventLoopTaskHandle) != pdPASS) {
+            vQueueDelete(m_message_queue);
+            vSemaphoreDelete(m_mutex);
+            throwRuntimeError("PubSub", "Failed to create event loop task");
+        }
+    }
+
+    void PubSub::publish(Topic topic, const Payload &message, const SubscriberHandle source)
+    {
 
         constexpr const char* kTag = "publish";
 
@@ -210,14 +229,17 @@ namespace pub_sub {
         return false;
     }
 
-    void PubSub::eventLoop(void* pubsubInstance) { 
-        const auto me = static_cast<PubSub*>(pubsubInstance);
-//#ifdef ESP_PLATFORM
-//        while(true) {
-//#else
-        while (!me->m_terminateFlag.load()) {
-//#endif
-            me->receive();
+    void PubSub::eventLoop(std::weak_ptr<PubSub> weakPubSub) { 
+        while (true) {
+            if (auto sharedPubSub = weakPubSub.lock()) {
+                if (sharedPubSub->m_terminateFlag.load()) {
+                    break;
+                }
+                sharedPubSub->receive();
+            } else {
+                // The PubSub instance has been deleted
+                break;
+            }
         }
     }
 

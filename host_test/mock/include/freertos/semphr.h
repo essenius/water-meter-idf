@@ -30,3 +30,7 @@ inline bool xSemaphoreGive(SemaphoreHandle_t& semaphore) {
     semaphore->unlock();
     return true;
 }
+
+inline void vSemaphoreDelete(SemaphoreHandle_t& semaphore) {
+    semaphore.reset();
+}

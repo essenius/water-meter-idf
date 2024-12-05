@@ -21,9 +21,11 @@ namespace flow_detector_test {
 
     void test_anomaly1();
     void test_bi_quadrant();
+    void test_anomaly_values_ignored();
 
     inline void run_tests() {
         RUN_TEST(test_anomaly1);
+        RUN_TEST(test_anomaly_values_ignored);
         RUN_TEST(test_bi_quadrant);
     }
 

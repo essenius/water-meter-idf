@@ -30,8 +30,8 @@
 namespace pub_sub {
 
     struct IntCoordinate {
-        uint16_t x;
-        uint16_t y;
+        int16_t x;
+        int16_t y;
 
         IntCoordinate() : x(0), y(0) {}
         IntCoordinate(int16_t xIn, int16_t yIn) : x(xIn), y(yIn) {}
@@ -130,11 +130,12 @@ namespace pub_sub {
             size_t m_bufferSize = BufferSize;
     };
     
-    class PubSub {
+    class PubSub : public std::enable_shared_from_this<PubSub> {
     public:
-        PubSub();
+        static std::shared_ptr<PubSub> create();
         ~PubSub();
 
+        void begin();
         void publish(Topic topic, const Payload& message, const SubscriberHandle source = nullptr);
         void subscribe(const SubscriberHandle subscriber, Topic topic);
         void unsubscribe(const SubscriberHandle subscriber, Topic topic = Topic::AllTopics);
@@ -145,6 +146,7 @@ namespace pub_sub {
         void dump_subscribers(const char* tag = "dump") const;
 
     private:
+        PubSub();
         bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
         bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const;
@@ -162,10 +164,7 @@ namespace pub_sub {
             return result;
         }
 
-//#ifdef ESP_PLATFORM
-        [[noreturn]]
-//#endif
-        static void eventLoop(void* pubsubInstance);
+        static void eventLoop(std::weak_ptr<PubSub> weakPubSub);
         void processMessage(const Message &msg) const;
         void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
         [[noreturn]] void throwRuntimeError(const std::string& context, const std::string& detail) const;

@@ -22,18 +22,20 @@ struct TaskControlBlock {
 static std::unordered_map<std::thread::id, TaskHandle_t> task_threads;
 
 
-inline void xTaskCreate(TaskFunction_t task, const char* name, int, void* param, int, TaskHandle_t* taskHandle) {
+inline BaseType_t xTaskCreate(TaskFunction_t task, const char* name, int, void* param, int, TaskHandle_t* taskHandle) {
     auto tcb = std::make_shared<TaskControlBlock>();
     tcb->thread = std::thread([task, param, tcb]() {
         task(param);
-       ESP_LOGD(kTaskTag, "Task terminated");
+        ESP_LOGI(kTaskTag, "Task terminated");
     });
     task_threads[tcb->thread.get_id()] = tcb;
-    if (taskHandle) {
-        *taskHandle = tcb;
-    ESP_LOGD(kTaskTag, "Created task %s (%p)", name, tcb.get());
+    if (!taskHandle) {
+        ESP_LOGW(kTaskTag, "Task handle is null");
+        return pdFAIL;
     }
-
+    *taskHandle = tcb;
+    ESP_LOGI(kTaskTag, "Created task %s (%p)", name, tcb.get());
+    return pdPASS;
 }
 
 inline void vTaskDelay(int ticks) {

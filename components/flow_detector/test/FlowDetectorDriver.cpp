@@ -20,7 +20,7 @@ namespace flow_detector_test {
     using EllipseMath::Coordinate;
     using EllipseMath::CartesianEllipse;
 
-    FlowDetectorDriver::FlowDetectorDriver(PubSub& pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
+    FlowDetectorDriver::FlowDetectorDriver(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
         const bool pulse, const bool outlier, const bool first)
     : FlowDetector(pubsub, ellipseFit) {
         m_movingAverage = average;
