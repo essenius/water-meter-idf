@@ -9,16 +9,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug)
-set(EXTRA_COMPONENT_DIRS "${CMAKE_SOURCE_DIR}/../components")
-set(PUB_SUB_DIR "${EXTRA_COMPONENT_DIRS}/pub_sub")
+set(EXTRA_COMPONENT_DIRS "${CMAKE_SOURCE_DIR}/../components" "${CMAKE_SOURCE_DIR}/../managed_components")
+#set(PUB_SUB_DIR "${EXTRA_COMPONENT_DIRS}/pub_sub")
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_SOURCE_DIR}/lib;${CMAKE_BINARY_DIR}/lib/cmake")
 
 project(water_meter_host_test)
 
-add_subdirectory(lib)
+# add_subdirectory(lib)
 
-message(STATUS "PUB_SUB_DIR=" ${PUB_SUB_DIR})
+message(STATUS "EXTRA_COMPONENT_DIRS=" ${EXTRA_COMPONENT_DIRS})
 
 # we need this for unity
 set (IDF_PATH $ENV{IDF_PATH} CACHE STRING "Path to the ESP-IDF framework")
@@ -28,8 +28,25 @@ message(STATUS "IDF_PATH=" ${IDF_PATH})
 
 #set (PUB_SUB_DIR ${CMAKE_SOURCE_DIR}/../components/pub_sub CACHE STRING "Path to the pub_sub component")
 
-file (GLOB_RECURSE TEST_SOURCES "${EXTRA_COMPONENT_DIRS}/*/test/*.cpp")
+set (TEST_SOURCES)
+set (COMPONENT_SOURCES)
+set (COMPONENT_INCLUDES) 
+set (COMPONENT_TESTDATA)
+foreach(DIR ${EXTRA_COMPONENT_DIRS})
+    file (GLOB_RECURSE TEST_FILES "${DIR}/*/test/*.cpp")
+    list(APPEND TEST_SOURCES ${TEST_FILES})
+    file(GLOB_RECURSE COMPONENT_FILES "${DIR}/*/*.cpp")
+    list(APPEND COMPONENT_SOURCES ${COMPONENT_FILES})
+    file(GLOB COMPONENT_INC "${DIR}/*/include" "${DIR}/*/test/include" "${DIR}/*")
+    list(APPEND COMPONENT_INCLUDES ${COMPONENT_INC})
+    file(GLOB TESTDATA "${DIR}/*/test/testData/*")
+    list(APPEND COMPONENT_TESTDATA ${TESTDATA})
+
+    endforeach()
 message(STATUS "TEST_SOURCES=" ${TEST_SOURCES})
+message(STATUS "COMPONENT_SOURCES=" ${COMPONENT_SOURCES})
+message(STATUS "COMPONENT_INCLUDES=" ${COMPONENT_INCLUDES})
+message(STATUS "COMPONENT_TESTDATA=" ${COMPONENT_TESTDATA})
 
 file (GLOB_RECURSE MOCK_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/mock/*.cpp")
 message(STATUS "MOCK_SOURCES=" ${MOCK_SOURCES})
@@ -40,17 +57,12 @@ set(SOURCES
     ${MOCK_SOURCES}
     ${TEST_SOURCES}
 )
-
 message(STATUS "SOURCES=" ${SOURCES})
-file(GLOB_RECURSE COMPONENT_SOURCES "${EXTRA_COMPONENT_DIRS}/*/*.cpp")
 
 # Add the source files for the components
 #set(COMPONENT_SOURCES
 #    ${PUB_SUB_DIR}/pub_sub.cpp
 #)
-
-file(GLOB COMPONENT_INCLUDES "${EXTRA_COMPONENT_DIRS}/*/include" "${EXTRA_COMPONENT_DIRS}/*/test/include")
-message(STATUS "COMPONENT_INCLUDES=" ${COMPONENT_INCLUDES})
 
 # Include directories
 include_directories(
@@ -73,6 +85,33 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${COMPONENT_SOURCES})
 # We built this library separately. TODO: Add instructions on how to build this library
 target_link_libraries(${PROJECT_NAME} ${IDF_PATH}/components/unity/unity/host_build/build/libunity.a)
 
+message(STATUS "Building unit tests for ${COMPONENT_NAME}")
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}")
+message(STATUS "CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}")
+message(STATUS "CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}")
+
+# Define the test data folder
+set(TEST_DATA_FOLDER "${CMAKE_SOURCE_DIR}/testData")
+
+# Define the target directory for the test data files
+set(TARGET_TEST_DATA_FOLDER "${CMAKE_BINARY_DIR}/testData")
+
+message(STATUS "Copying test data files to the binaries folder for ${PROJECT_NAME}")
+
+# Add a custom command to copy each test data file
+foreach(TESTDATA ${COMPONENT_TESTDATA})
+    get_filename_component(FILE_NAME ${TESTDATA} NAME)
+    add_custom_command(
+        TARGET ${PROJECT_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${TESTDATA} ${TARGET_TEST_DATA_FOLDER}/${FILE_NAME}
+        COMMENT "Copying ${FILE_NAME} to the binaries folder"
+    )
+endforeach()
+
+# Add a custom target to ensure the test data files are copied
+add_custom_target(copy_test_data ALL DEPENDS ${PROJECT_NAME})
 # Build the tests to run on a Windows host:
 #  mkdir build
 #  cd build

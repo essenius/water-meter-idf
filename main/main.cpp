@@ -17,17 +17,22 @@
 #include <MathUtils.h>
 #include <iostream> // for std::cout; remove later
 #include "MagnetoSensorHmc.hpp"
+#include "TestSubscriber.hpp"
 
-pubsub::SubscriberCallback callback = std::make_shared<std::function<void(const pubsub::Topic, const pubsub::Payload&)>>(
+/*pubsub::SubscriberCallback callback = std::make_shared<std::function<void(const pubsub::Topic, const pubsub::Payload&)>>(
     [](const pubsub::Topic& topic, const pubsub::Payload& payload) {
         std::visit([&](auto&& arg) {
             std::cout << "Topic: " << topic << ", Payload: " << arg << std::endl;
         }, payload);
     }
-);
+);*/
 
 
 extern "C" void app_main() {
+    using pub_sub_test::TestSubscriber;
+    using pub_sub::PubSub;
+    using pub_sub::Topic;
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -78,9 +83,10 @@ extern "C" void app_main() {
         //   Radius (10.000000, 6.000000)
         //   Angle 1.047198
 
-        pubsub::PubSub pubsub;
-        pubsub.subscribe(1, callback);
-        pubsub.publish(1, static_cast<float>(result.getCenter().x));
-        pubsub.publish(1, static_cast<float>(result.getCenter().y));
+        TestSubscriber subscriber(1);
+        PubSub pubsub;
+        pubsub.subscribe(&subscriber, Topic::Sample);
+        pubsub.publish(Topic::Sample, static_cast<float>(result.getCenter().x));
+        pubsub.publish(Topic::Sample, static_cast<float>(result.getCenter().y));
     }
 }

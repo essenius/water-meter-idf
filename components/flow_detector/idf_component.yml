@@ -2,9 +2,12 @@ dependencies:
   matrix: 
     path: src
     git: https://github.com/essenius/Matrix.git
-    version: v0.2.7
+    version: v0.2.8
   ellipse_fit: 
     path: src
     git: https://github.com/essenius/EllipseFit.git
-    version: v0.2.6
-
+    version: v0.2.7
+  safe_cstring:
+    path: src
+    git: https://github.com/essenius/safe-cstring.git
+    version: v0.6.5

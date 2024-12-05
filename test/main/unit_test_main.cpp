@@ -24,6 +24,7 @@ extern "C" void app_main(void)  {
     unity_run_tests_by_tag("[i2c_bus]", false);
     unity_run_tests_by_tag("[magneto_sensor]", false);
     unity_run_tests_by_tag("[pub_sub]", false);
+    unity_run_tests_by_tag("[flow_detector]", false);
 
     UNITY_END();
 

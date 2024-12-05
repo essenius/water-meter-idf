@@ -75,9 +75,19 @@ namespace pub_sub {
     }
 
     class Subscriber {
-    public:
-        virtual ~Subscriber() = default;
-        virtual void subscriberCallback(const Topic topic, const Payload& payload) = 0;
+        public:
+            Subscriber() = default;
+            virtual ~Subscriber() = default;
+            Topic getTopic() const { return m_topic; }
+            Payload getPayload() const { return m_payload; }
+            virtual void reset() { 
+                m_topic = Topic::None; 
+                m_payload = 0;
+            }
+            virtual void subscriberCallback(const Topic topic, const Payload& payload);
+        private:
+            Topic m_topic = Topic::None;
+            Payload m_payload = 0;
     };
 
     using SubscriberHandle = Subscriber*;
@@ -152,9 +162,9 @@ namespace pub_sub {
             return result;
         }
 
-#ifdef ESP_PLATFORM
+//#ifdef ESP_PLATFORM
         [[noreturn]]
-#endif
+//#endif
         static void eventLoop(void* pubsubInstance);
         void processMessage(const Message &msg) const;
         void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);

@@ -22,7 +22,7 @@
 #include <CartesianEllipse.h>
 #include <EllipseFit.h>
 #include "PubSub.hpp"
-#include "SensorSample.h"
+#include "SensorSample.hpp"
 
 // needed for compilation in Arduino IDE to define NAN
 #include <cmath>
@@ -41,7 +41,7 @@ namespace flow_detector {
 	class FlowDetector : public pub_sub::Subscriber {
 	public:
 		FlowDetector(PubSub& pubsub, EllipseFit& ellipseFit);
-		void begin(unsigned int noiseRange);
+		void begin(unsigned int noiseRange = 3);
         bool foundAnomaly() const { return m_foundAnomaly; }
 		bool foundPulse() const { return m_foundPulse; }
 		bool isSearching() const { return m_searchingForPulse; }

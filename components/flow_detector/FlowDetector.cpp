@@ -27,7 +27,7 @@
 // It should be close to the angle to the center - PI / 2, and since we subtract, the difference of PI / 2 doesn't matter.
 // When that moves from quadrant 3 to 2, we have a pulse. we accept the (small) risk that in the first cycle we get an outlier. 
 
-#include "FlowDetector.h"
+#include "FlowDetector.hpp"
 #include <EllipseFit.h>
 #include <MathUtils.h>
 #include <utility>
@@ -46,7 +46,7 @@ namespace flow_detector {
 
 	// Public methods
 
-	void FlowDetector::begin(const unsigned int noiseRange = 3) {
+	void FlowDetector::begin(const unsigned int noiseRange) {
 		// we assume that the noise range for X and Y is the same.
 		// If the distance between two points is beyond this, it is beyond noise
 		m_distanceThreshold = sqrt(2.0 * noiseRange * noiseRange) / MovingAverageNoiseReduction;

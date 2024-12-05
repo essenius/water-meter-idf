@@ -10,8 +10,8 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 
-#include "FlowDetectorDriver.h"
-#include "PubSub.h"
+#include "FlowDetectorDriver.hpp"
+#include "PubSub.hpp"
 
 // constructor for ResultAggregatorTest. Uses fields that are used for reporting
 
@@ -20,9 +20,9 @@ namespace flow_detector_test {
     using EllipseMath::Coordinate;
     using EllipseMath::CartesianEllipse;
 
-    FlowDetectorDriver::FlowDetectorDriver(PubSub& eventServer, EllipseFit& ellipseFit, const Coordinate& average, 
+    FlowDetectorDriver::FlowDetectorDriver(PubSub& pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
         const bool pulse, const bool outlier, const bool first)
-    : FlowDetector(eventServer, ellipseFit) {
+    : FlowDetector(pubsub, ellipseFit) {
         m_movingAverage = average;
         m_foundPulse = pulse;
         m_foundAnomaly = outlier;

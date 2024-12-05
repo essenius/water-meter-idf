@@ -28,11 +28,12 @@ namespace pub_sub {
         }
         
         // Start the event loop task
-        xTaskCreate(eventLoop, "EventLoop", 4096, this, 3, &m_eventLoopTaskHandle);
+        xTaskCreate(eventLoop, "EventLoop", 16384, this, 3, &m_eventLoopTaskHandle);
     }
 
     PubSub::~PubSub() {
         unsubscribeAll();
+
         if (m_message_queue != nullptr) {
             vQueueDelete(m_message_queue);
         }
@@ -40,6 +41,9 @@ namespace pub_sub {
             m_terminateFlag.store(true);
             vTaskDelay(pdMS_TO_TICKS(10)); // Give some time for the task to check the flag and exit
             vTaskDelete(m_eventLoopTaskHandle);
+        }
+        if (m_mutex != nullptr) {
+            vSemaphoreDelete(m_mutex);
         }
     }
 
@@ -208,11 +212,11 @@ namespace pub_sub {
 
     void PubSub::eventLoop(void* pubsubInstance) { 
         const auto me = static_cast<PubSub*>(pubsubInstance);
-#ifdef ESP_PLATFORM
-        while(true) {
-#else
+//#ifdef ESP_PLATFORM
+//        while(true) {
+//#else
         while (!me->m_terminateFlag.load()) {
-#endif
+//#endif
             me->receive();
         }
     }
@@ -255,5 +259,11 @@ namespace pub_sub {
                 ESP_LOGI(kTag, "  Subscriber %p", subscriber);
             }
         }
+    }
+
+
+    void Subscriber::subscriberCallback(const Topic topic, const Payload &payload) {
+        m_topic = topic;
+        m_payload = payload;
     }
 }

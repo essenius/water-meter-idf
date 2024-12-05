@@ -12,11 +12,13 @@
 
 #pragma once
 
-#include "FlowDetector.h"
+#include "FlowDetector.hpp"
 
 namespace flow_detector_test {
     using flow_detector::FlowDetector;
     using EllipseMath::EllipseFit;
+    using EllipseMath::Coordinate;
+    using pub_sub::PubSub;
 
     class FlowDetectorDriver final : public FlowDetector {
     public:
@@ -30,7 +32,7 @@ namespace flow_detector_test {
 
         explicit FlowDetectorDriver(PubSub& pubsub, EllipseFit& ellipseFit) : FlowDetector(pubsub, ellipseFit) {}
 
-        FlowDetectorDriver(PubSub& eventServer, EllipseFit& ellipseFit, Coordinate average, 
+        FlowDetectorDriver(PubSub& pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
                            bool pulse = false, bool outlier = false, bool first = false);
 
     };

@@ -16,44 +16,19 @@
 #include <thread>
 #include <esp_log.h>
 #include "TestPubSub.hpp"
+#include "TestSubscriber.hpp"
 
 
-namespace pub_sub {
+namespace pub_sub_test {
+    using pub_sub::PubSub;
+    using pub_sub::Topic;
+    using pub_sub::Payload;
+    using pub_sub::IntCoordinate;
+    using pub_sub::Subscriber;
+    using pub_sub::SubscriberHandle;
+    using pub_sub::MessageVisitor;
+    using pub_sub_test::TestSubscriber;
     
-    class TestSubscriber : public Subscriber {
-    public:
-        explicit TestSubscriber(int id) : m_id(id) , _messageVisitor(m_buffer) {}
-        const char* getBuffer() const { 
-            return m_buffer; 
-        }
-        uint32_t getCallCount() const { return m_callCount; }
-        Topic getTopic() const { return m_topic; }
-        void reset() { 
-            m_buffer[0] = '\0'; 
-            m_topic = Topic::None; 
-            m_callCount = 0; 
-        }
-
-        void subscriberCallback(const Topic topic, const Payload& message) override {
-            m_topic = topic;
-            m_callCount++;
-            std::visit(_messageVisitor, message);
-            ESP_LOGI("subscriberCallback", "id=%d, topic=%d, message='%s'", m_id, static_cast<uint8_t>(topic), m_buffer);
-        }
-
-    private:
-        static const char* kTag;
-        int m_id;
-        Topic m_topic = Topic::None;
-        char m_buffer[100] = {0};
-        uint32_t m_callCount = 0;
-        MessageVisitor<100> _messageVisitor;
-    };
-
-    const char* TestSubscriber::kTag = "TestSubscriber";
-
-    constexpr const char* TAG = "testPubSub";
-
     std::atomic<bool> terminateEventLoop(false);
 
     DEFINE_TEST_CASE(all_payload_types) {

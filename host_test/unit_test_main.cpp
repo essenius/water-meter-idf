@@ -17,6 +17,9 @@
 #include "TestI2cBus.hpp"
 #include "TestMagnetoSensor.hpp"
 #include "esp_log.h"
+#include "FlowDetector.hpp"
+#include "TestFlowDetector.hpp"	
+
 #include "driver/i2c_master.h"
 
 void setUp(void) {
@@ -34,9 +37,12 @@ constexpr const char* MTAG = "main";
 extern "C" int main(int argc, char **argv) {
     UNITY_BEGIN();
     ESP_LOGI(MTAG, "Running tests in C++ %ld", __cplusplus);
+    
     i2c::run_tests();
     magneto_sensor::run_tests();
-    pub_sub::run_tests();
+    pub_sub_test::run_tests();
+    flow_detector_test::run_tests();
+
     ESP_LOGI(MTAG, "All tests done");
     int result = UNITY_END();
     deleteAllTasks(); 

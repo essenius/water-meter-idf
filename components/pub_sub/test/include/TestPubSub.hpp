@@ -8,7 +8,7 @@
 #define DEFINE_TEST_CASE(test_name) \
     void test_##test_name()
 
-    namespace pub_sub {
+    namespace pub_sub_test {
         void test_all_payload_types();
         void test_multiple_subscribers();
 
