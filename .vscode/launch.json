@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
       "name": "(gdb) Launch",
       "type": "cppdbg",
@@ -8,7 +9,7 @@
       "program": "${workspaceFolder}/host_test/build/water_meter_host_test.exe",
       "args": [],
       "stopAtEntry": false,
-      "cwd": "${fileDirname}",
+      "cwd": "${workspaceFolder}/host_test/build/",
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb",

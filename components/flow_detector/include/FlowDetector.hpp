@@ -40,7 +40,7 @@ namespace flow_detector {
 
 	class FlowDetector : public pub_sub::Subscriber {
 	public:
-		FlowDetector(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit);
+		FlowDetector(std::shared_ptr<pub_sub::PubSub>& pubsub, EllipseFit& ellipseFit);
 		void begin(unsigned int noiseRange = 3);
         bool foundAnomaly() const { return m_foundAnomaly; }
 		bool foundPulse() const { return m_foundPulse; }
@@ -78,7 +78,7 @@ namespace flow_detector {
 		static constexpr double MovingAverageNoiseReduction = 2; // = sqrt(MovingAverageSize)
 		static constexpr unsigned int MaxConsecutiveOutliers = 50; // half a second
 
-		std::shared_ptr<pub_sub::PubSub> m_pubsub;
+		std::shared_ptr<pub_sub::PubSub>& m_pubsub;
 		EllipseFit& m_ellipseFit;
 		IntCoordinate m_movingAverageArray[MovingAverageSize] = {};
 		int8_t m_movingAverageIndex = 0;

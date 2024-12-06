@@ -42,7 +42,7 @@ namespace flow_detector {
 
 	constexpr double MinCycleForFit = 0.6;
 
-	FlowDetector::FlowDetector(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit) : m_pubsub(pubsub), m_ellipseFit(ellipseFit) {}
+	FlowDetector::FlowDetector(std::shared_ptr<pub_sub::PubSub>& pubsub, EllipseFit& ellipseFit) : m_pubsub(pubsub), m_ellipseFit(ellipseFit) {}
 
 	// Public methods
 
@@ -287,7 +287,7 @@ namespace flow_detector {
 	}
 
 	int16_t  FlowDetector::noFitParameter(const double angleDistance, const bool fitSucceeded) {
-		return static_cast<int16_t>(round(abs(angleDistance * 180) * (fitSucceeded ? 1.0 : -1.0)));
+		return static_cast<int16_t>(round(fabs(angleDistance * 180) * (fitSucceeded ? 1.0 : -1.0)));
 	}
 
     void FlowDetector::runFirstFit(const Coordinate& point) {
@@ -296,7 +296,7 @@ namespace flow_detector {
         // number of points per ellipse defines whether the fit is reliable.
         const auto passedCycles = m_tangentDistanceTravelled / (2 * M_PI);
         const auto fitSucceeded = fittedEllipse.isValid();
-        if (fitSucceeded && abs(passedCycles) >= MinCycleForFit) {
+        if (fitSucceeded && fabs(passedCycles) >= MinCycleForFit) {
             m_confirmedGoodFit = fittedEllipse;
             m_previousAngleWithCenter = point.getAngleFrom(center);
             m_previousQuadrant = m_previousAngleWithCenter.getQuadrant();

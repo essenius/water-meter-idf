@@ -25,7 +25,7 @@ namespace flow_detector_test {
 
     class PulseTestSubscriber : public Subscriber {
     public:
-        PulseTestSubscriber(std::shared_ptr<pub_sub::PubSub> pubsub, const char* fileName = nullptr);
+        PulseTestSubscriber(std::shared_ptr<pub_sub::PubSub>& pubsub, const char* fileName = nullptr);
         unsigned int anomalies() const { return m_excludeCount; }
         unsigned int drifts() const { return m_driftCount; }
         unsigned int noFits() const { return m_noFitCount; }

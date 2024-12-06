@@ -30,6 +30,8 @@
 #include "PulseTestSubscriber.hpp"
 #include "TestFlowDetector.hpp"
 #include "MathUtils.h"
+#include <sstream>
+
 
 namespace flow_detector_test {
 	using EllipseMath::EllipseFit;
@@ -52,27 +54,48 @@ namespace flow_detector_test {
 		ESP_LOGW(kTag, "Flow test %s skipped on ESP32", fileName.c_str());
 #else
 	void flowTestWithFile(const std::string& fileName, const ExpectedResult& expectedResult, const unsigned int noiseLimit = 3, const char* outFileName = nullptr) {
-		auto pubsub = PubSub::create();
-		EllipseFit ellipseFit;
-		FlowDetector flowDetector(pubsub, ellipseFit);
-		PulseTestSubscriber pulseClient(pubsub, outFileName);
-		flowDetector.begin(noiseLimit);
-		IntCoordinate measurement{};
-		std::ifstream measurements("testData\\" + fileName);
-		TEST_ASSERT_TRUE_MESSAGE(measurements.is_open(), "File open");
-		measurements.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-		auto measurementCount = 0;
-		while (measurements >> measurement.x) {
-			measurements >> measurement.y;
-			measurementCount++;
-			pubsub->publish(Topic::Sample, measurement);
+		{
+			auto pubsub = PubSub::create();
+			ESP_LOGI("flowTestWithFile", "Reference count after create: %ld", pubsub->getReferenceCount());
+			EllipseFit ellipseFit;
+			FlowDetector flowDetector(pubsub, ellipseFit);
+			ESP_LOGI("flowTestWithFile", "Reference count before pulseclient: %ld", pubsub->getReferenceCount());
+			PulseTestSubscriber pulseClient(pubsub, outFileName);
+			ESP_LOGI("flowTestWithFile", "Reference count after pulseclient: %ld", pubsub->getReferenceCount());
+			flowDetector.begin(noiseLimit);
+			ESP_LOGI("flowTestWithFile", "Reference count after begin: %ld", pubsub->getReferenceCount());
+			IntCoordinate measurement{};
+			char cwd[PATH_MAX];
+			if (getcwd(cwd, sizeof(cwd)) != NULL) {
+				printf("Current working dir: %s\n", cwd);
+			} else {
+				perror("getcwd() error");
+			}
+			std::ifstream measurements("testData\\" + fileName);
+			TEST_ASSERT_TRUE_MESSAGE(measurements.is_open(), "File open");
+			measurements.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			auto measurementCount = 0;
+			while (measurements >> measurement.x) {
+				measurements >> measurement.y;
+				measurementCount++;	
+				pubsub->publish(Topic::Sample, measurement);
+				pubsub->waitForIdle();
+			}
+			printf("Read %d samples\n", measurementCount);
+
+			pulseClient.close();
+
+			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.firstPulses, pulseClient.pulses(false), "First Pulses");
+			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.nextPulses, pulseClient.pulses(true), "Next Pulses");
+			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.anomalies, pulseClient.anomalies(), "Anomalies");
+			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.noFits, pulseClient.noFits(), "NoFits");
+			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.drifts, pulseClient.drifts(), "Drifts");
+			ESP_LOGI("flowTestWithFile", "Reference count before reset: %ld", pubsub->getReferenceCount());
+			pubsub.reset();
+			ESP_LOGI("flowTestWithFile", "Reference count after reset: %ld", pubsub->getReferenceCount());
 		}
-		pulseClient.close();
-		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.firstPulses, pulseClient.pulses(false), "First Pulses");
-		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.nextPulses, pulseClient.pulses(true), "Next Pulses");
-		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.anomalies, pulseClient.anomalies(), "Anomalies");
-		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.noFits, pulseClient.noFits(), "NoFits");
-		TEST_ASSERT_EQUAL_MESSAGE(expectedResult.drifts, pulseClient.drifts(), "Drifts");
+		ESP_LOGI("flowTestWithFile", "after scope");
+
 #endif
 	}
 
@@ -136,7 +159,7 @@ namespace flow_detector_test {
 		TEST_ASSERT_EQUAL_MESSAGE(SensorState::PowerError, payload, "Anomaly value ");
 	}
 
-	DEFINE_TEST_CASE(bi_quadrant) {
+	DEFINE_FILE_TEST_CASE(bi_quadrant) {
 		EllipseFit ellipseFit;
 		auto pubsub = PubSub::create();
 		FlowDetectorDriver flowDetector(pubsub, ellipseFit);
@@ -162,89 +185,96 @@ namespace flow_detector_test {
 		while (measurements >> measurement.x) {
 			measurements >> measurement.y;
 			flowDetector.processMovingAverageSample(measurement);
+			pubsub->waitForIdle();
+
 		}
-		pubsub->waitForIdle();
 		TEST_ASSERT_EQUAL_MESSAGE(1, subscriber.pulses(false), "One pulse from the circle");
 		TEST_ASSERT_EQUAL_MESSAGE(4, subscriber.pulses(true), "4 pulses from the crafted test samples");
 		TEST_ASSERT_EQUAL_MESSAGE(0, subscriber.anomalies(), "No anomalies");
 		TEST_ASSERT_EQUAL_MESSAGE(0, subscriber.noFits(), "Fit worked");
 	}
 
-	DEFINE_TEST_CASE(very_slow_flow) {
+	DEFINE_FILE_TEST_CASE(very_slow_flow) {
+
 		ExpectedResult expectedResult = { 1, 0, 0 };
 		flowTestWithFile("verySlow.txt", expectedResult);
 	}
 
-	DEFINE_TEST_CASE(many_outliers) {
+	DEFINE_FILE_TEST_CASE(many_outliers) {
 		ExpectedResult expectedResult = { 4, 153, 50, 2, 1 };
 		flowTestWithFile("manyOutliers.txt", expectedResult, 3, "manyOutliersResult.txt");
 	}
 
-	DEFINE_TEST_CASE(no_flow) {
+	DEFINE_FILE_TEST_CASE(no_flow) {
 		ExpectedResult expectedResult = { 0, 0, 0 };
 		flowTestWithFile("noise.txt", expectedResult);
 	}
 
-	DEFINE_TEST_CASE(fast_flow) {
+	DEFINE_FILE_TEST_CASE(fast_flow) {
     	ExpectedResult expected{2, 75, 0, 0, 0}; 
     	flowTestWithFile("fast.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(slow_fast_flow) {
+	DEFINE_FILE_TEST_CASE(slow_fast_flow) {
 		ExpectedResult expected{1, 11, 0, 0, 0}; 
 		flowTestWithFile("slowFast.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(slow_flow) {
+	DEFINE_FILE_TEST_CASE(slow_flow) {
 		ExpectedResult expected{1, 1, 0, 0, 0}; 
 		flowTestWithFile("slow.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(slowest_flow) {
+	DEFINE_FILE_TEST_CASE(slowest_flow) {
 		ExpectedResult expected{1, 0, 0}; 
 		flowTestWithFile("slowest.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(fast_flow_then_noisy) {
+	DEFINE_FILE_TEST_CASE(fast_flow_then_noisy) {
 		ExpectedResult expected{2, 3, 0, 0, 0}; 
 		flowTestWithFile("fastThenNoisy.txt", expected, 12);
 	}
 
-	DEFINE_TEST_CASE(anomaly) {
+	DEFINE_FILE_TEST_CASE(anomaly) {
 		ExpectedResult expected{1, 3, 50, 0, 1}; 
 		flowTestWithFile("anomaly.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(cycles_60) {
+	DEFINE_FILE_TEST_CASE(cycles_60) {
 		ExpectedResult expected{1, 59, 0}; 
 		flowTestWithFile("60cycles.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(noise_at_end) {
+	DEFINE_FILE_TEST_CASE(noise_at_end) {
 		ExpectedResult expected{1, 5, 0}; 
 		flowTestWithFile("noiseAtEnd.txt", expected);
 	}
 
-	DEFINE_TEST_CASE(no_fit) {
+	DEFINE_FILE_TEST_CASE(no_fit) {
 		ExpectedResult expected{1, 0, 0, 1}; 
 		flowTestWithFile("forceNoFit.txt", expected);
 	}
 	
-	DEFINE_TEST_CASE(flush) {
+	DEFINE_FILE_TEST_CASE(flush) {
 		ExpectedResult expected{2, 37, 299, 0, 1}; 
 		flowTestWithFile("flush.txt", expected, 11);
 	}
 
-	DEFINE_TEST_CASE(wrong_outlier) {
+	DEFINE_FILE_TEST_CASE(wrong_outlier) {
 		ExpectedResult expected{1, 61, 10, 0, 0}; 
 		flowTestWithFile("wrong outliers.txt", expected, 3);
 	}
 
-	DEFINE_TEST_CASE(crash) {
+	DEFINE_FILE_TEST_CASE(crash) {
 		ExpectedResult expected{1, 11, 0, 0, 0}; 
 		flowTestWithFile("crash.txt", expected, 3);
 	}
 
+	void setStream(std::ostringstream& oss, const char* message, int pass) {
+		oss.str("");
+		oss.clear();
+		oss << message << pass;
+	}
 	DEFINE_TEST_CASE(sensor_was_reset) {
 		EllipseFit ellipseFit;
 		auto pubsub = PubSub::create();
@@ -252,23 +282,45 @@ namespace flow_detector_test {
 
 		flowDetector.begin(3);
 		constexpr int Radius = 20;
+
+        std::ostringstream oss;
+
 		for (int pass = 0; pass < 2; pass++) {
 			unsigned int skipped = 0;
-			TEST_ASSERT_TRUE_MESSAGE(flowDetector.wasReset(), "Flow detector reset at pass " + pass) ;
+			setStream(oss, "Flow detector reset at pass ", pass);
+			TEST_ASSERT_TRUE_MESSAGE(flowDetector.wasReset(), oss.str().c_str());
+			auto timeInPublish = 0.0;
+			auto timeInWaitForIdle = 0.0;
+
 			for (int i = 0; i < 30; i++) {
 				const double angle = i * M_PI / 16.0;
+				auto pub_time = std::chrono::high_resolution_clock::now();
 				pubsub->publish(Topic::Sample, IntCoordinate{static_cast <int16_t>(cos(angle) * Radius), static_cast <int16_t>(sin(angle) * Radius)});
+				auto end_time = std::chrono::high_resolution_clock::now();
+				timeInPublish += std::chrono::duration<double, std::micro>(end_time - pub_time).count();
+				auto wait_time = std::chrono::high_resolution_clock::now();
+				pubsub->waitForIdle();
+				end_time = std::chrono::high_resolution_clock::now();
+				timeInWaitForIdle += std::chrono::duration<double, std::micro>(end_time - wait_time).count();
 				if (flowDetector.wasSkipped()) skipped++;
 			}
 
-			TEST_ASSERT_EQUAL_MESSAGE(8u, skipped, "8 values skipped pass" + pass);
+			printf("Time in publish: %.1f us, time in waitForIdle: %.1f us\n", timeInPublish, timeInWaitForIdle);
+
+
+			setStream(oss, "8 values skipped pass ", pass);
+			oss << ", skipped: " << skipped;
+			TEST_ASSERT_EQUAL_MESSAGE(8u, skipped, oss.str().c_str());
 			skipped = 0;
-			TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), "Flow detector not reset after adding samples pass " + pass);
+			setStream(oss, "Flow detector not reset after adding samples pass ", pass);
+			TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), oss.str().c_str());
 			if (pass == 0) {
 				pubsub->publish(Topic::SensorWasReset, true);
+				pubsub->waitForIdle();
 			}
 		}
 		pubsub->publish(Topic::Sample, IntCoordinate{Radius, 0});
+		pubsub->waitForIdle();
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), "Flow detector not reset at end");
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasSkipped(), "sample not skipped at end");
 	}
@@ -286,4 +338,5 @@ namespace flow_detector_test {
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, 0);
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, SHRT_MAX);
 	}
+
 }

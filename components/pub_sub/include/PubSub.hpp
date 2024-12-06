@@ -133,7 +133,8 @@ namespace pub_sub {
     class PubSub : public std::enable_shared_from_this<PubSub> {
     public:
         static std::shared_ptr<PubSub> create();
-        ~PubSub();
+        PubSub();
+        virtual ~PubSub();
 
         void begin();
         void publish(Topic topic, const Payload& message, const SubscriberHandle source = nullptr);
@@ -145,8 +146,9 @@ namespace pub_sub {
         void waitForIdle() const;
         void dump_subscribers(const char* tag = "dump") const;
 
+        long getReferenceCount() const;
+
     private:
-        PubSub();
         bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber);
         void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
         bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const;

@@ -39,7 +39,7 @@ inline BaseType_t xTaskCreate(TaskFunction_t task, const char* name, int, void* 
 }
 
 inline void vTaskDelay(int ticks) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ticks * portTICK_PERIOD_MS));
+    // no-op instead of std::this_thread::sleep_for(std::chrono::milliseconds(ticks * portTICK_PERIOD_MS));
 }
 
 // delete a task by handle. Expects the handle to be valid. Internal use only.

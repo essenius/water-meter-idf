@@ -19,6 +19,7 @@ namespace pub_sub {
     // Public contstructors and methods
 
     PubSub::PubSub() : m_topic_count(0), m_terminateFlag(false), m_processing(false) {
+
         m_mutex = xSemaphoreCreateMutex();
         if (m_mutex == nullptr) {
             throwRuntimeError("PubSub", "Failed to create mutex");
@@ -32,13 +33,18 @@ namespace pub_sub {
     }
 
     std::shared_ptr<PubSub> PubSub::create() {
-        std::shared_ptr<PubSub> instance(new PubSub());
+        std::shared_ptr<PubSub> tempPtr;
+        ESP_LOGI("create", "Reference count before create: %ld", tempPtr.use_count());
+        auto instance = std::make_shared<PubSub>();
+   		ESP_LOGI("create", "Reference count after create: %ld", instance->getReferenceCount());
+
         instance->begin();
+   		ESP_LOGI("create", "Reference count after begin: %ld", instance->getReferenceCount());
         return instance;
     }
 
-    PubSub::~PubSub()
-    {
+    PubSub::~PubSub() {
+        ESP_LOGI("~PubSub", "Destroying pubsub\n");
         unsubscribeAll();
 
         if (m_message_queue != nullptr) {
@@ -52,17 +58,21 @@ namespace pub_sub {
         if (m_mutex != nullptr) {
             vSemaphoreDelete(m_mutex);
         }
+        ESP_LOGI("~PubSub", "Done destroying pubsub\n");
     }
 
     void PubSub::begin() {
         // Start the event loop task
-        auto sharedThis = shared_from_this();
+
+		ESP_LOGI("begin", "Reference count at start: %ld", getReferenceCount());
+
         if (xTaskCreate([](void* param) { eventLoop(std::weak_ptr<PubSub>(static_cast<PubSub*>(param)->shared_from_this())); }, 
                         "EventLoop", 16384, this, 3, &m_eventLoopTaskHandle) != pdPASS) {
             vQueueDelete(m_message_queue);
             vSemaphoreDelete(m_mutex);
             throwRuntimeError("PubSub", "Failed to create event loop task");
         }
+		ESP_LOGI("begin", "Reference count at end: %ld", getReferenceCount());
     }
 
     void PubSub::publish(Topic topic, const Payload &message, const SubscriberHandle source)
@@ -233,12 +243,14 @@ namespace pub_sub {
         while (true) {
             if (auto sharedPubSub = weakPubSub.lock()) {
                 if (sharedPubSub->m_terminateFlag.load()) {
+               		ESP_LOGI("eventLoop", "Reference count at break 1: %ld", sharedPubSub->getReferenceCount());
                     break;
                 }
                 sharedPubSub->receive();
             } else {
                 // The PubSub instance has been deleted
                 break;
+               		ESP_LOGI("eventLoop", "PubSub instance deleted");
             }
         }
     }
@@ -283,6 +295,9 @@ namespace pub_sub {
         }
     }
 
+    long PubSub::getReferenceCount() const {
+        return shared_from_this().use_count();
+    }
 
     void Subscriber::subscriberCallback(const Topic topic, const Payload &payload) {
         m_topic = topic;

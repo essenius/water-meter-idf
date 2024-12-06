@@ -22,7 +22,7 @@ namespace flow_detector_test {
     using pub_sub::IntCoordinate;
     using pub_sub_test::TestSubscriber;
 
-    PulseTestSubscriber::PulseTestSubscriber(std::shared_ptr<pub_sub::PubSub> pubsub, const char* fileName) {
+    PulseTestSubscriber::PulseTestSubscriber(std::shared_ptr<pub_sub::PubSub>& pubsub, const char* fileName) {
 #ifdef ESP_PLATFORM
         m_writeToFile = false;
 #else
