@@ -29,9 +29,10 @@ namespace pub_sub_test {
     using pub_sub::MessageVisitor;
     using pub_sub_test::TestSubscriber;
     
-    std::atomic<bool> terminateEventLoop(false);
+    //std::atomic<bool> terminateEventLoop(false);
 
     DEFINE_TEST_CASE(all_payload_types) {
+        {
         const char* kTestTag = "AllPayloadTypes";
         auto pubsub = PubSub::create();
         TestSubscriber subscriber(1);
@@ -80,10 +81,12 @@ namespace pub_sub_test {
         TEST_ASSERT_EQUAL_MESSAGE(Topic::Sample, subscriber.getTopic(), "Topic should be Topic::Sample again");
         ESP_LOGI(kTestTag, "Ending all payload types test");
         pubsub->unsubscribeAll();
-        terminateEventLoop.store(true);
+        pubsub->end();
+        }
     }
 
     DEFINE_TEST_CASE(multiple_subscribers) {
+        {
         constexpr const char* kTestTag = "MultipleSubscribers";
         auto pubsub = PubSub::create();
         TestSubscriber subscriber1(1);
@@ -186,6 +189,7 @@ namespace pub_sub_test {
         pubsub->waitForIdle();
         TEST_ASSERT_EQUAL_MESSAGE(0, subscriber1.getCallCount(), "Subscriber1 not subscribed to Anomaly or Pulse");
         TEST_ASSERT_EQUAL_MESSAGE(1, subscriber3.getCallCount(), "Subscriber3 still subscribed");
-        terminateEventLoop.store(true);
+        pubsub->end();
+        }
     }
 }

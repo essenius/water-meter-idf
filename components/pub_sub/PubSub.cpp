@@ -9,17 +9,18 @@
 // is distributed on an "AS IS" BASIS WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 
-#include "PubSub.hpp"
-#include <algorithm>
+#include <fstream>
+#include "freertos/freeRTOS.h"
 #include "freertos/semphr.h"
 #include <sstream>
+#include "PubSub.hpp"
+#include "esp_log.h"
 
 namespace pub_sub {
 
-    // Public contstructors and methods
+    // Public constructors and methods
 
-    PubSub::PubSub() : m_topic_count(0), m_terminateFlag(false), m_processing(false) {
-
+    PubSub::PubSub() : m_processing(false), m_terminateFlag(false)  {
         m_mutex = xSemaphoreCreateMutex();
         if (m_mutex == nullptr) {
             throwRuntimeError("PubSub", "Failed to create mutex");
@@ -33,8 +34,6 @@ namespace pub_sub {
     }
 
     std::shared_ptr<PubSub> PubSub::create() {
-        std::shared_ptr<PubSub> tempPtr;
-        ESP_LOGI("create", "Reference count before create: %ld", tempPtr.use_count());
         auto instance = std::make_shared<PubSub>();
    		ESP_LOGI("create", "Reference count after create: %ld", instance->getReferenceCount());
 
@@ -44,41 +43,58 @@ namespace pub_sub {
     }
 
     PubSub::~PubSub() {
-        ESP_LOGI("~PubSub", "Destroying pubsub\n");
+        ESP_LOGI("~PubSub", "Destroying pubsub");
         unsubscribeAll();
-
+        end();
+        ESP_LOGI("~PubSub", "Deleting queue and mutex");
         if (m_message_queue != nullptr) {
             vQueueDelete(m_message_queue);
-        }
-        if (m_eventLoopTaskHandle != nullptr) {
-            m_terminateFlag.store(true);
-            vTaskDelay(pdMS_TO_TICKS(10)); // Give some time for the task to check the flag and exit
-            vTaskDelete(m_eventLoopTaskHandle);
         }
         if (m_mutex != nullptr) {
             vSemaphoreDelete(m_mutex);
         }
-        ESP_LOGI("~PubSub", "Done destroying pubsub\n");
+        ESP_LOGI("~PubSub", "Done destroying pubsub");
     }
 
     void PubSub::begin() {
         // Start the event loop task
 
-		ESP_LOGI("begin", "Reference count at start: %ld", getReferenceCount());
-
-        if (xTaskCreate([](void* param) { eventLoop(std::weak_ptr<PubSub>(static_cast<PubSub*>(param)->shared_from_this())); }, 
-                        "EventLoop", 16384, this, 3, &m_eventLoopTaskHandle) != pdPASS) {
+        const auto self = shared_from_this();
+        ESP_LOGI("begin", "Reference count at start: %ld", self->getReferenceCount());
+        m_eventLoopFinished.store(false);
+        if (xTaskCreate([](void* param) {
+            const auto sharedPubSub = static_cast<PubSub*>(param)->shared_from_this();
+            eventLoop(sharedPubSub);
+        }, "EventLoop", 16384, self.get(), 3, & m_eventLoopTaskHandle) != pdPASS) {
             vQueueDelete(m_message_queue);
             vSemaphoreDelete(m_mutex);
             throwRuntimeError("PubSub", "Failed to create event loop task");
         }
-		ESP_LOGI("begin", "Reference count at end: %ld", getReferenceCount());
+		ESP_LOGI("begin", "Reference count at end: %ld", self->getReferenceCount());
     }
 
-    void PubSub::publish(Topic topic, const Payload &message, const SubscriberHandle source)
-    {
+    void PubSub::end() {
+#ifndef ESP_PLATFORM
+        // we don't want to end the task in the ESP32 environment, as it will crash the system
+        // and just deleting the task will work fine (unlike in default C++ where *that* will crash)
+        ESP_LOGI("end", "Terminating task");
+        m_terminateFlag.store(true);
+        while (!m_eventLoopFinished.load()) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+#endif
+        ESP_LOGI("end", "Deleting task");
+        if (m_eventLoopTaskHandle != nullptr) {
+            vTaskDelete(m_eventLoopTaskHandle);
+        }
+    }
 
-        constexpr const char* kTag = "publish";
+    long PubSub::getReferenceCount() const {
+        return shared_from_this().use_count();
+    }
+
+    void PubSub::publish(Topic topic, const Payload &message, const SubscriberHandle source) {
+        constexpr auto kTag = "publish";
 
         doInMutex(
             [this, topic, message, source]() {
@@ -87,9 +103,10 @@ namespace pub_sub {
                 msg.message = message;
                 msg.source = source;
                 if (xQueueSend(m_message_queue, &msg, portMAX_DELAY) != pdPASS) {
-                    char buffer[100];
+                    char buffer[100] = {};
                     MessageVisitor visitor(buffer);
                     std::visit(visitor, message);
+                    buffer[99] = '\0';
                     throwRuntimeError(kTag, std::string("Failed to publish topic ") + toCString(topic) + ", message: " + buffer);
                 }
                 m_processing = true;
@@ -100,26 +117,7 @@ namespace pub_sub {
         );
     }
 
-    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber) {
-        // note: must be called with the mutex taken
-        constexpr const char* kTag = "addSubscriberToExistingTopic";
-        if (subscriberMap.topic != topic) return false;
-        if (doesCallbackExist(subscriberMap, subscriber)) {
-            return true; // do not add it again
-        }
-
-        return doInMutex(
-            [&subscriberMap, &subscriber]() {
-                subscriberMap.subscribers.push_back(subscriber);
-                return true;
-            }, 
-            kTag, 
-            toCString(topic)
-        );
-        return true;        
-    }
-
-    void PubSub::subscribe(const SubscriberHandle subscriber, Topic topic) {
+    void PubSub::subscribe(const SubscriberHandle subscriber, const Topic topic) {
         for (auto& subscriberMap: m_subscribers) {
             if (addSubscriberToExistingTopic(subscriberMap, topic, subscriber)) return;
         }
@@ -137,44 +135,8 @@ namespace pub_sub {
         );
     }
 
-    // expects the mutex to be taken
-    void PubSub::removeSubscriber(const SubscriberHandle subscriber, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
-        // Manually iterate and remove subscribers that reference the specified callback
-        for (auto it = subscriberMap.subscribers.begin(); it != subscriberMap.subscribers.end(); ++it ) {
-            if (static_cast<void*>(*it) == static_cast<void*>(subscriber)) {
-                it = subscriberMap.subscribers.erase(it);
-                break;
-            }
-        }
-
-        if (subscriberMap.subscribers.empty()) {
-            mapsToClear.push_back(&subscriberMap);
-        }
-    }
-
-    [[noreturn]] void PubSub::throwRuntimeError(const std::string &context, const std::string &detail) const {
-        std::stringstream ss;
-        ss << context << ": " << detail;
-        ESP_LOGE("PubSub", "Throwing runtime error: %s", ss.str().c_str());
-        for (;;);
-    }
-
-    // expects the mutex to be taken
-    void PubSub::removeMapsToClear(const std::vector<SubscriberMap*>& mapsToClear) {
-        // remove all maps to clear from m_subscribers
-        for (auto* map : mapsToClear) {
-            m_subscribers.erase(
-                std::remove_if(
-                    m_subscribers.begin(),
-                    m_subscribers.end(),
-                    [map](const SubscriberMap& sm) { return sm.topic == map->topic; }),
-                m_subscribers.end()
-            );
-        }
-    }
-
     void PubSub::unsubscribe(const SubscriberHandle subscriber, Topic topic) {
-        constexpr const char* kTag = "unsubscribe";
+        constexpr auto kTag = "unsubscribe";
 
         doInMutex(
             [this, topic, subscriber]() {
@@ -194,11 +156,11 @@ namespace pub_sub {
 
     void PubSub::unsubscribeAll() {
         ESP_LOGI("UnsubscribeAll", "Unsubscribing all");
-        dump_subscribers("unsubscribeAll before");
+        dumpSubscribers("unsubscribeAll before");
         doInMutex(
             [this]() {
-                for (auto& subscriberMap: m_subscribers) {
-                    subscriberMap.subscribers.clear();
+                for (auto& [topic, subscribers]: m_subscribers) {
+                    subscribers.clear();
                 }
                 m_subscribers.clear();
                 return true;
@@ -207,7 +169,7 @@ namespace pub_sub {
             "hello"
         );
 
-        dump_subscribers("unsubscribeAll after");
+        dumpSubscribers("unsubscribeAll after");
     }
 
     bool PubSub::isIdle() const {
@@ -221,8 +183,26 @@ namespace pub_sub {
     }
 
     // Private methods
-    
-    void PubSub::callSubscriber(const SubscriberMap &subscriberMap, const Message& msg) const {
+
+    bool PubSub::addSubscriberToExistingTopic(SubscriberMap& subscriberMap, const Topic topic, const SubscriberHandle subscriber) {
+        // note: must be called with the mutex taken
+        constexpr auto kTag = "addSubscriberToExistingTopic";
+        if (subscriberMap.topic != topic) return false;
+        if (doesCallbackExist(subscriberMap, subscriber)) {
+            return true; // do not add it again
+        }
+
+        return doInMutex(
+            [&subscriberMap, &subscriber]() {
+                subscriberMap.subscribers.push_back(subscriber);
+                return true;
+            },
+            kTag,
+            toCString(topic)
+        );
+    }
+
+    void PubSub::callSubscriber(const SubscriberMap &subscriberMap, const Message& msg) {
         for (const auto &subscriber : subscriberMap.subscribers) {
             if (msg.source == nullptr || msg.source != subscriber) {
                 subscriber->subscriberCallback(msg.topic, msg.message);
@@ -230,7 +210,7 @@ namespace pub_sub {
         }
     }
 
-    bool PubSub::doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const {
+    bool PubSub::doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) {
         for (const auto& existingSubscriber : subscriberMap.subscribers) {
             if (existingSubscriber == subscriber) {
                 return true;
@@ -239,33 +219,34 @@ namespace pub_sub {
         return false;
     }
 
-    void PubSub::eventLoop(std::weak_ptr<PubSub> weakPubSub) { 
+    void PubSub::eventLoop(const std::shared_ptr<PubSub>& sharedPubSub) { 
         while (true) {
-            if (auto sharedPubSub = weakPubSub.lock()) {
-                if (sharedPubSub->m_terminateFlag.load()) {
-               		ESP_LOGI("eventLoop", "Reference count at break 1: %ld", sharedPubSub->getReferenceCount());
-                    break;
-                }
-                sharedPubSub->receive();
-            } else {
-                // The PubSub instance has been deleted
+            if (sharedPubSub->m_terminateFlag.load()) {
+                ESP_LOGI("eventLoop", "Terminating. Reference count: %ld", sharedPubSub->getReferenceCount());
                 break;
-               		ESP_LOGI("eventLoop", "PubSub instance deleted");
             }
+            sharedPubSub->receive();
+            taskYIELD();
         }
+
+        // Signal completion
+        ESP_LOGI("eventLoop", "Signalling completion");
+        sharedPubSub->m_eventLoopFinished.store(true);
     }
 
     void PubSub::receive() {
         Message msg;
-        // not using doInMutex here, as we don't want to block the event loop
-        if (xSemaphoreTake(m_mutex, 2* MutexTimeout) == pdTRUE) {
+        // not using doInMutex here, as we want to release the mutex before processing/waiting
+        if (xSemaphoreTake(m_mutex, 2* kMutexTimeout) == pdTRUE) {
             if (xQueueReceive(m_message_queue, &msg, 0) == pdFAIL) {
                 // nothing waiting in the queue
                 m_processing = false;
-                xSemaphoreGive(m_mutex);                
+                xSemaphoreGive(m_mutex); 
+                printf("x");
                 vTaskDelay(pdMS_TO_TICKS(10)); 
             } else {
                 m_processing = true;
+                printf("M");
                 char buffer[100];
                 std::visit(MessageVisitor(buffer), msg.message);
                 xSemaphoreGive(m_mutex);                
@@ -275,6 +256,30 @@ namespace pub_sub {
         } 
     }
 
+    // expects the mutex to be taken before the operation
+    void PubSub::removeMapsToClear(const std::vector<SubscriberMap*>& mapsToClear) {
+        // remove all maps to clear from m_subscribers
+        for (auto* map : mapsToClear) {
+            std::erase_if(
+                m_subscribers,
+                [map](const SubscriberMap& sm) { return sm.topic == map->topic; });
+        }
+    }
+
+    // expects the mutex to be taken
+    void PubSub::removeSubscriber(const SubscriberHandle subscriber, SubscriberMap& subscriberMap, std::vector<SubscriberMap*>& mapsToClear) {
+        // Manually iterate and remove subscribers that reference the specified callback
+        for (auto it = subscriberMap.subscribers.begin(); it != subscriberMap.subscribers.end(); ++it) {
+            if (static_cast<void*>(*it) == static_cast<void*>(subscriber)) {
+                it = subscriberMap.subscribers.erase(it);
+                break;
+            }
+        }
+
+        if (subscriberMap.subscribers.empty()) {
+            mapsToClear.push_back(&subscriberMap);
+        }
+    }
     void PubSub::processMessage(const Message& msg) const {
         for (auto const& subscriberMap: m_subscribers) {
             if (subscriberMap.topic == msg.topic) {
@@ -284,23 +289,26 @@ namespace pub_sub {
         }
     }
 
-    void PubSub::dump_subscribers(const char* tag) const {
-        constexpr const char* kTag = "dump_subscribers";
+    void PubSub::dumpSubscribers(const char* tag) const {
+        constexpr auto kTag = "dump_subscribers";
         ESP_LOGI(kTag, "Dumping subscribers (tag %s)", tag);
-        for (auto const& subscriberMap: m_subscribers) {
-            ESP_LOGI(kTag, "Topic %d", static_cast<uint8_t>(subscriberMap.topic));
-            for (auto const& subscriber: subscriberMap.subscribers) {
+        for (const auto& [topic, subscribers]: m_subscribers) {
+            ESP_LOGI(kTag, "Topic %d", static_cast<uint8_t>(topic));
+            for (auto const& subscriber: subscribers) {
                 ESP_LOGI(kTag, "  Subscriber %p", subscriber);
             }
         }
     }
 
-    long PubSub::getReferenceCount() const {
-        return shared_from_this().use_count();
-    }
-
     void Subscriber::subscriberCallback(const Topic topic, const Payload &payload) {
         m_topic = topic;
         m_payload = payload;
+    }
+
+    [[noreturn]] void PubSub::throwRuntimeError(const std::string& context, const std::string& detail) {
+        std::stringstream ss;
+        ss << context << ": " << detail;
+        ESP_LOGE("PubSub", "Throwing runtime error: %s", ss.str().c_str());
+        for (;;);
     }
 }

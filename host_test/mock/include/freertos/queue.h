@@ -7,18 +7,18 @@
 #include <memory>
 #include <cstring>
 #include <mutex>
-#include "FreeRTOS.h"
+#include "freeRTOS.h"
 #include "../esp_log.h"
 
 // Mock FreeRTOS types and functions
 using QueueHandle_t = std::queue<std::shared_ptr<std::vector<uint8_t>>>*;
 
-static int ItemSize = 0;
-static std::mutex queue_mutex; // Mutex for synchronizing access to the queue
+static int m_itemSize = 0;
+static std::mutex queueMutex; // Mutex for synchronizing access to the queue
 
 
 inline QueueHandle_t xQueueCreate(int queueLength, int itemSize) {
-    ItemSize = itemSize;
+    m_itemSize = itemSize;
     return new std::queue<std::shared_ptr<std::vector<uint8_t>>>();
 }
 
@@ -32,19 +32,19 @@ inline bool isAligned(const void* const ptr, const size_t alignment) {
 
 
 // Function to display the contents of copied_item
-inline void displayCopiedItem(const std::shared_ptr<std::vector<uint8_t>>& copied_item) {
+inline void displayCopiedItem(const std::shared_ptr<std::vector<uint8_t>>& copiedItem) {
     ESP_LOGI( "displayCopiedItem", "Contents of copied_item:");
-    for (const auto& byte : *copied_item) {
+    for (const auto& byte : *copiedItem) {
         printf("%02x ", byte);
     }
     printf("\n");
 }
 
 inline bool xQueueSend(QueueHandle_t& queue, const void* const item, int) {
-    constexpr const char* kTag = "xQueueSend";
-    std::lock_guard<std::mutex> lock(queue_mutex);
+    constexpr auto kTag = "xQueueSend";
+    std::lock_guard<std::mutex> lock(queueMutex);
 
-    if (ItemSize <= 0) {
+    if (m_itemSize <= 0) {
         ESP_LOGE(kTag, "Invalid item size");
         return false;
     }
@@ -56,10 +56,10 @@ inline bool xQueueSend(QueueHandle_t& queue, const void* const item, int) {
     }
 
     try {
-        auto real_item = static_cast<const uint8_t*>(item);
-        auto copied_item = std::make_shared<std::vector<uint8_t>>(real_item, real_item + ItemSize);
+        auto realItem = static_cast<const uint8_t*>(item);
+        const auto copiedItem = std::make_shared<std::vector<uint8_t>>(realItem, realItem + m_itemSize);
         // displayCopiedItem(copied_item);
-        queue->push(copied_item);
+        queue->push(copiedItem);
     } catch (const std::bad_alloc& e) {
         ESP_LOGE(kTag, "Bad allocation Exception in xQueueSend: %s", e.what());
         return false;
@@ -74,11 +74,11 @@ inline bool xQueueSend(QueueHandle_t& queue, const void* const item, int) {
 }
 
 inline bool xQueueReceive(QueueHandle_t& queue, void* item, int) {
-    std::lock_guard<std::mutex> lock(queue_mutex);
+    std::lock_guard<std::mutex> lock(queueMutex);
 
     if (queue->empty()) return false;
-    auto copied_item = queue->front();
-    std::memcpy(item, copied_item->data(), copied_item->size());
+    const auto copiedItem = queue->front();
+    std::memcpy(item, copiedItem->data(), copiedItem->size());
     queue->pop();
     return true;
 }

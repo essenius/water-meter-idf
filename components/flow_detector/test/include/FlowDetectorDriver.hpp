@@ -30,9 +30,9 @@ namespace flow_detector_test {
         using FlowDetector::m_justStarted;
         using FlowDetector::m_foundPulse;
 
-        explicit FlowDetectorDriver(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit) : FlowDetector(pubsub, ellipseFit) {}
+        explicit FlowDetectorDriver(std::shared_ptr<pub_sub::PubSub>& pubsub, EllipseFit& ellipseFit) : FlowDetector(pubsub, ellipseFit) {}
 
-        FlowDetectorDriver(std::shared_ptr<pub_sub::PubSub> pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
+        FlowDetectorDriver(std::shared_ptr<pub_sub::PubSub>& pubsub, EllipseFit& ellipseFit, const Coordinate& average, 
                            bool pulse = false, bool outlier = false, bool first = false);
     };
 }

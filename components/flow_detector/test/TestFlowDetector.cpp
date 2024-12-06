@@ -31,6 +31,7 @@
 #include "TestFlowDetector.hpp"
 #include "MathUtils.h"
 #include <sstream>
+#include "esp_log.h"
 
 
 namespace flow_detector_test {
@@ -79,8 +80,9 @@ namespace flow_detector_test {
 				measurements >> measurement.y;
 				measurementCount++;	
 				pubsub->publish(Topic::Sample, measurement);
-				pubsub->waitForIdle();
+				//if (measurementCount % 100 == 0) pubsub->waitForIdle();
 			}
+			pubsub->waitForIdle();
 			printf("Read %d samples\n", measurementCount);
 
 			pulseClient.close();
@@ -91,7 +93,7 @@ namespace flow_detector_test {
 			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.noFits, pulseClient.noFits(), "NoFits");
 			TEST_ASSERT_EQUAL_MESSAGE(expectedResult.drifts, pulseClient.drifts(), "Drifts");
 			ESP_LOGI("flowTestWithFile", "Reference count before reset: %ld", pubsub->getReferenceCount());
-			pubsub.reset();
+			pubsub->end();
 			ESP_LOGI("flowTestWithFile", "Reference count after reset: %ld", pubsub->getReferenceCount());
 		}
 		ESP_LOGI("flowTestWithFile", "after scope");
@@ -110,7 +112,7 @@ namespace flow_detector_test {
 		);
 	}
 
-	void expectAnomalyAndSkipped(const FlowDetector& flowDetector, std::shared_ptr<pub_sub::PubSub> pubsub, const int16_t x, const int16_t y) {
+	void expectAnomalyAndSkipped(const FlowDetector& flowDetector, std::shared_ptr<pub_sub::PubSub>& pubsub, const int16_t x, const int16_t y) {
 		pubsub->publish(Topic::Sample, IntCoordinate(x, y));
 		pubsub->waitForIdle();
 		TEST_ASSERT_TRUE_MESSAGE(flowDetector.foundAnomaly(), "Anomaly");
@@ -157,6 +159,7 @@ namespace flow_detector_test {
 		TEST_ASSERT_EQUAL_MESSAGE(Topic::Anomaly, anomalySubscriber.getTopic(), "Anomaly topic");
 		auto payload = std::get<int>(anomalySubscriber.getPayload());
 		TEST_ASSERT_EQUAL_MESSAGE(SensorState::PowerError, payload, "Anomaly value ");
+		pubsub->end();
 	}
 
 	DEFINE_FILE_TEST_CASE(bi_quadrant) {
@@ -323,6 +326,7 @@ namespace flow_detector_test {
 		pubsub->waitForIdle();
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasReset(), "Flow detector not reset at end");
 		TEST_ASSERT_FALSE_MESSAGE(flowDetector.wasSkipped(), "sample not skipped at end");
+		pubsub->end();
 	}
 
 
@@ -337,6 +341,6 @@ namespace flow_detector_test {
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MAX, 0);
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, 0);
 		expectAnomalyAndSkipped(flowDetector, pubsub, SHRT_MIN, SHRT_MAX);
+		pubsub->end();
 	}
-
 }

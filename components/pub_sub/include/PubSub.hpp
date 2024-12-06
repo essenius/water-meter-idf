@@ -15,17 +15,14 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
-#include "esp_log.h"
-#include <mutex>
 #include <condition_variable>
 #include <vector>
 #include <variant>
-#include <functional>
 #include <memory>
 #include <format>
 #include <atomic>
 #include <cstring>
-
+#include <iostream>
 
 namespace pub_sub {
 
@@ -34,15 +31,15 @@ namespace pub_sub {
         int16_t y;
 
         IntCoordinate() : x(0), y(0) {}
-        IntCoordinate(int16_t xIn, int16_t yIn) : x(xIn), y(yIn) {}
+        IntCoordinate(const int16_t xIn, const int16_t yIn) : x(xIn), y(yIn) {}
 
         // we need this to pass coordinates in a memory efficient way but still keep reasonable accuracy
         static IntCoordinate times10(const double xIn, const double yIn) {
             return {static_cast<int16_t>(xIn * 10), static_cast<int16_t>(yIn * 10)};
         }
 
-        friend std::ostream& operator<<(std::ostream& os, const IntCoordinate& coord) {
-            os << "(" << coord.x << ", " << coord.y << ")";
+        friend std::ostream& operator<<(std::ostream& os, const IntCoordinate& coordinate) {
+            os << "(" << coordinate.x << ", " << coordinate.y << ")";
             return os;
         }
     };
@@ -76,10 +73,10 @@ namespace pub_sub {
 
     class Subscriber {
         public:
-            Subscriber() = default;
+            //Subscriber() = default;
             virtual ~Subscriber() = default;
-            Topic getTopic() const { return m_topic; }
-            Payload getPayload() const { return m_payload; }
+            [[nodiscard]] Topic getTopic() const { return m_topic; }
+            [[nodiscard]] Payload getPayload() const { return m_payload; }
             virtual void reset() { 
                 m_topic = Topic::None; 
                 m_payload = 0;
@@ -108,11 +105,11 @@ namespace pub_sub {
         public:
             explicit MessageVisitor(char(&buffer)[BufferSize]) :m_buffer(buffer) {}
     
-            void operator()(int value) const {
+            void operator()(const int value) const {
                 snprintf(m_buffer, m_bufferSize, "%d", value);
             }
 
-            void operator()(float value) const {
+            void operator()(const float value) const {
                 snprintf(m_buffer, m_bufferSize, "%f", value);
             }
 
@@ -130,58 +127,58 @@ namespace pub_sub {
             size_t m_bufferSize = BufferSize;
     };
     
-    class PubSub : public std::enable_shared_from_this<PubSub> {
+    class PubSub final : public std::enable_shared_from_this<PubSub> {
     public:
         static std::shared_ptr<PubSub> create();
         PubSub();
-        virtual ~PubSub();
+        ~PubSub();
 
         void begin();
-        void publish(Topic topic, const Payload& message, const SubscriberHandle source = nullptr);
+        void end();
+        bool isIdle() const;
+        void publish(Topic topic, const Payload& message, SubscriberHandle source = nullptr);
+        void receive();
         void subscribe(const SubscriberHandle subscriber, Topic topic);
         void unsubscribe(const SubscriberHandle subscriber, Topic topic = Topic::AllTopics);
         void unsubscribeAll();
-        bool isIdle() const;
-        void receive();
         void waitForIdle() const;
-        void dump_subscribers(const char* tag = "dump") const;
 
+        void dumpSubscribers(const char* tag = "dump") const;
         long getReferenceCount() const;
 
     private:
-        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, const SubscriberHandle subscriber);
-        void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg) const;
-        bool doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) const;
-        void removeMapsToClear(const std::vector<SubscriberMap *> &mapsToClear);
+        bool addSubscriberToExistingTopic(SubscriberMap& subscriberMap, Topic topic, SubscriberHandle subscriber);
+        static void callSubscriber(const SubscriberMap &subscriberMap, const Message &msg);
+        static bool doesCallbackExist(const SubscriberMap& subscriberMap, SubscriberHandle subscriber);
 
         template <typename Func>
         bool doInMutex(Func&& operation, const char* context, const char* detail) {
-            if (xSemaphoreTake(m_mutex, MutexTimeout + 2) != pdTRUE) {
+            if (xSemaphoreTake(m_mutex, kMutexTimeout + 2) != pdTRUE) {
                 throwRuntimeError(context, std::string("Failed to take semaphore for " + std::string(detail)));
             }
-            bool result = operation();
+            const bool result = std::forward<Func>(operation)();
             if (xSemaphoreGive(m_mutex) != pdTRUE) {
                 throwRuntimeError(context, std::string("Failed to give semaphore for " + std::string(detail)));
             }
             return result;
         }
 
-        static void eventLoop(std::weak_ptr<PubSub> weakPubSub);
+        static void eventLoop(const std::shared_ptr<PubSub>& sharedPubSub);
         void processMessage(const Message &msg) const;
-        void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
-        [[noreturn]] void throwRuntimeError(const std::string& context, const std::string& detail) const;
+        void removeMapsToClear(const std::vector<SubscriberMap*>& mapsToClear);
+        static void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
+        [[noreturn]] static void throwRuntimeError(const std::string& context, const std::string& detail);
 
-        std::vector<SubscriberMap> m_subscribers;
-        int m_topic_count;
-        QueueHandle_t m_message_queue;
-        SemaphoreHandle_t m_mutex;
+        static constexpr int kMutexTimeout = pdMS_TO_TICKS(1000);
+
+        std::atomic<bool> m_eventLoopFinished = true;
         TaskHandle_t m_eventLoopTaskHandle;
+        SemaphoreHandle_t m_mutex;
+        QueueHandle_t m_message_queue;
+        bool m_processing;
+        std::vector<SubscriberMap> m_subscribers;
         std::atomic<bool> m_terminateFlag;
 
-        static const int MutexTimeout = pdMS_TO_TICKS(1000);
-
-        std::condition_variable m_conditionVariable;
-        bool m_processing;
     };
 
 }
