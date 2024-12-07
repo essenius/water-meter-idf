@@ -84,9 +84,16 @@ extern "C" void app_main() {
         //   Angle 1.047198
 
         TestSubscriber subscriber(1);
-        PubSub pubsub;
-        pubsub.subscribe(&subscriber, Topic::Sample);
-        pubsub.publish(Topic::Sample, static_cast<float>(result.getCenter().x));
-        pubsub.publish(Topic::Sample, static_cast<float>(result.getCenter().y));
+        auto pubsub = PubSub::create();
+        ESP_LOGI("main", "Reference count after create: %ld", pubsub->getReferenceCount());
+        pubsub->subscribe(&subscriber, Topic::Sample);
+        ESP_LOGI("main", "Reference count after subscribe: %ld", pubsub->getReferenceCount());
+        pubsub->publish(Topic::Sample, static_cast<float>(result.getCenter().x));
+        pubsub->publish(Topic::Sample, static_cast<float>(result.getCenter().y));
+        ESP_LOGI("main", "Reference count after publish: %ld", pubsub->getReferenceCount());
+        pubsub->waitForIdle();
+        pubsub->end();
+        ESP_LOGI("main", "Reference count before going out of scope: %ld", pubsub->getReferenceCount());
+
     }
 }

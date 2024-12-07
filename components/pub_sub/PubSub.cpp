@@ -35,7 +35,7 @@ namespace pub_sub {
 
     std::shared_ptr<PubSub> PubSub::create() {
         auto instance = std::make_shared<PubSub>();
-   		ESP_LOGI("create", "Reference count after create: %ld", instance->getReferenceCount());
+   		ESP_LOGI("create", "Reference count after make_shared: %ld", instance->getReferenceCount());
 
         instance->begin();
    		ESP_LOGI("create", "Reference count after begin: %ld", instance->getReferenceCount());
@@ -59,34 +59,26 @@ namespace pub_sub {
     void PubSub::begin() {
         // Start the event loop task
 
-        const auto self = shared_from_this();
-        ESP_LOGI("begin", "Reference count at start: %ld", self->getReferenceCount());
         m_eventLoopFinished.store(false);
-        if (xTaskCreate([](void* param) {
-            const auto sharedPubSub = static_cast<PubSub*>(param)->shared_from_this();
-            eventLoop(sharedPubSub);
-        }, "EventLoop", 16384, self.get(), 3, & m_eventLoopTaskHandle) != pdPASS) {
+        ESP_LOGI("begin", "Reference count after defining self: %ld", getReferenceCount());
+        if (xTaskCreate(eventLoopTask, "EventLoop", 16384, this, 3, & m_eventLoopTaskHandle) != pdPASS) {
             vQueueDelete(m_message_queue);
             vSemaphoreDelete(m_mutex);
             throwRuntimeError("PubSub", "Failed to create event loop task");
         }
-		ESP_LOGI("begin", "Reference count at end: %ld", self->getReferenceCount());
+		ESP_LOGI("begin", "Reference count after creating task: %ld", getReferenceCount());
     }
 
     void PubSub::end() {
-#ifndef ESP_PLATFORM
-        // we don't want to end the task in the ESP32 environment, as it will crash the system
-        // and just deleting the task will work fine (unlike in default C++ where *that* will crash)
+        // We want to clean out the shared pointer when we are done, so rather than just killing the task, we ask it to terminate
+        // on ESP, it won't actually terminate but will keep running idle until vTaskDelete is called
         ESP_LOGI("end", "Terminating task");
         m_terminateFlag.store(true);
+
         while (!m_eventLoopFinished.load()) {
             vTaskDelay(pdMS_TO_TICKS(10));
         }
-#endif
-        ESP_LOGI("end", "Deleting task");
-        if (m_eventLoopTaskHandle != nullptr) {
-            vTaskDelete(m_eventLoopTaskHandle);
-        }
+        // the task deletes itself, so no need to do anything here
     }
 
     long PubSub::getReferenceCount() const {
@@ -234,6 +226,16 @@ namespace pub_sub {
         sharedPubSub->m_eventLoopFinished.store(true);
     }
 
+    void PubSub::eventLoopTask(void* param) {
+        {
+            // doing this in a block to ensure sharedPubSub is destroyed before the task is deleted
+            auto sharedPubSub = static_cast<PubSub*>(param)->shared_from_this();
+            sharedPubSub->eventLoop(sharedPubSub);
+            ESP_LOGI("eventLoopTask", "Deleting task");
+        }
+        vTaskDelete(nullptr);
+    }
+
     void PubSub::receive() {
         Message msg;
         // not using doInMutex here, as we want to release the mutex before processing/waiting
@@ -242,11 +244,9 @@ namespace pub_sub {
                 // nothing waiting in the queue
                 m_processing = false;
                 xSemaphoreGive(m_mutex); 
-                printf("x");
                 vTaskDelay(pdMS_TO_TICKS(10)); 
             } else {
                 m_processing = true;
-                printf("M");
                 char buffer[100];
                 std::visit(MessageVisitor(buffer), msg.message);
                 xSemaphoreGive(m_mutex);                

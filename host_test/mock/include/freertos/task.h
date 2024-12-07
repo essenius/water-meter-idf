@@ -10,7 +10,8 @@
 #include "freeRTOS.h"
 #include "esp_log.h"
 
-using TaskFunction_t = std::function<void(void*)>;
+typedef void (* TaskFunction_t)( void * );
+
 using TaskHandle_t = std::shared_ptr<struct TaskControlBlock>;
 
 constexpr auto kTaskTag = "task";
@@ -53,20 +54,25 @@ inline void taskYIELD() {
 inline void deleteTask(const TaskHandle_t& taskHandle) {
     ESP_LOGD(kTaskTag, "Deleting task %p", taskHandle.get());
     if (taskHandle->thread.joinable()) {
-        ESP_LOGI(kTaskTag, "Thread is joinable, attempting to join");
-        try {
-            taskHandle->thread.join();
-            ESP_LOGI(kTaskTag, "Thread joined successfully");
-        }
-        catch (const std::system_error& e) {
-            ESP_LOGE(kTaskTag, "Failed to join thread: %s", e.what());
+        if (taskHandle->thread.get_id() == std::this_thread::get_id()) {
+            ESP_LOGW(kTaskTag, "Detaching the current task to avoid deadlock");
+            taskHandle->thread.detach();
+        } else {
+            ESP_LOGI(kTaskTag, "Thread is joinable, attempting to join");
+            try {
+                taskHandle->thread.join();
+                ESP_LOGI(kTaskTag, "Thread joined successfully");
+            }
+            catch (const std::system_error& e) {
+                ESP_LOGE(kTaskTag, "Failed to join thread: %s, %s", e.what(), e.code().message().c_str());
+            }
         }
     }
     taskThreads.erase(taskHandle->thread.get_id());
 }
 
 inline void vTaskDelete(const TaskHandle_t& taskHandle) {
-        if (taskHandle == nullptr) {
+    if (taskHandle == nullptr) {
         // Delete the current task
         if (const auto it = taskThreads.find(std::this_thread::get_id()); it != taskThreads.end()) {
             deleteTask(it->second);

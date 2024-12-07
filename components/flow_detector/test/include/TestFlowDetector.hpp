@@ -31,6 +31,21 @@ namespace flow_detector_test {
     void test_bi_quadrant();
     void test_sensor_was_reset();
     void test_very_slow_flow();
+    void test_many_outliers();
+    void test_no_flow();
+    void test_fast_flow();
+    void test_slow_fast_flow();
+    void test_slow_flow();
+    void test_slowest_flow();
+    void test_fast_flow_then_noisy();
+    void test_anomaly();
+    void test_cycles_60();
+    void test_noise_at_end();
+    void test_no_fit();
+    void test_flush();
+    void test_wrong_outlier();
+    void test_crash();
+
 
     inline void run_tests() {
         RUN_TEST(test_anomaly1);
@@ -40,6 +55,20 @@ namespace flow_detector_test {
         printf("Running very slow flow test\n");
         RUN_TEST(test_very_slow_flow);
         printf("Done running very slow flow test\n");
+        RUN_TEST(test_many_outliers);
+        RUN_TEST(test_no_flow);
+        RUN_TEST(test_fast_flow);
+        RUN_TEST(test_slow_fast_flow);
+        RUN_TEST(test_slow_flow);
+        RUN_TEST(test_slowest_flow);
+        RUN_TEST(test_fast_flow_then_noisy);
+        RUN_TEST(test_anomaly);
+        RUN_TEST(test_cycles_60);
+        RUN_TEST(test_noise_at_end);
+        RUN_TEST(test_no_fit);
+        RUN_TEST(test_flush);
+        RUN_TEST(test_wrong_outlier);
+        RUN_TEST(test_crash);        
     }
 
     struct ExpectedResult {

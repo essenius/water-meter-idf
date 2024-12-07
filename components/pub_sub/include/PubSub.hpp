@@ -73,7 +73,6 @@ namespace pub_sub {
 
     class Subscriber {
         public:
-            //Subscriber() = default;
             virtual ~Subscriber() = default;
             [[nodiscard]] Topic getTopic() const { return m_topic; }
             [[nodiscard]] Payload getPayload() const { return m_payload; }
@@ -129,17 +128,16 @@ namespace pub_sub {
     
     class PubSub final : public std::enable_shared_from_this<PubSub> {
     public:
-        static std::shared_ptr<PubSub> create();
         PubSub();
+        static std::shared_ptr<PubSub> create();
         ~PubSub();
-
         void begin();
         void end();
         bool isIdle() const;
         void publish(Topic topic, const Payload& message, SubscriberHandle source = nullptr);
         void receive();
-        void subscribe(const SubscriberHandle subscriber, Topic topic);
-        void unsubscribe(const SubscriberHandle subscriber, Topic topic = Topic::AllTopics);
+        void subscribe(SubscriberHandle subscriber, Topic topic);
+        void unsubscribe(SubscriberHandle subscriber, Topic topic = Topic::AllTopics);
         void unsubscribeAll();
         void waitForIdle() const;
 
@@ -164,9 +162,10 @@ namespace pub_sub {
         }
 
         static void eventLoop(const std::shared_ptr<PubSub>& sharedPubSub);
+        static void eventLoopTask(void* param);
         void processMessage(const Message &msg) const;
         void removeMapsToClear(const std::vector<SubscriberMap*>& mapsToClear);
-        static void removeSubscriber(const SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
+        static void removeSubscriber(SubscriberHandle subscriber, SubscriberMap &subscriberMap, std::vector<SubscriberMap*>& mapsToClear);
         [[noreturn]] static void throwRuntimeError(const std::string& context, const std::string& detail);
 
         static constexpr int kMutexTimeout = pdMS_TO_TICKS(1000);
