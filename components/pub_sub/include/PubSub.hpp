@@ -73,14 +73,20 @@ namespace pub_sub {
 
     class Subscriber {
         public:
-            virtual ~Subscriber() = default;
-            [[nodiscard]] Topic getTopic() const { return m_topic; }
+        Subscriber() = default;
+        virtual ~Subscriber() = default;
+        Subscriber(const Subscriber&) = delete;
+        Subscriber& operator=(const Subscriber&) = delete;
+        Subscriber(Subscriber&&) = delete;
+        Subscriber& operator=(Subscriber&&) = delete;
+        
+        [[nodiscard]] Topic getTopic() const { return m_topic; }
             [[nodiscard]] Payload getPayload() const { return m_payload; }
             virtual void reset() { 
                 m_topic = Topic::None; 
                 m_payload = 0;
             }
-            virtual void subscriberCallback(const Topic topic, const Payload& payload);
+            virtual void subscriberCallback(Topic topic, const Payload& payload);
         private:
             Topic m_topic = Topic::None;
             Payload m_payload = 0;
@@ -131,6 +137,10 @@ namespace pub_sub {
         PubSub();
         static std::shared_ptr<PubSub> create();
         ~PubSub();
+        PubSub(const PubSub&) = delete;
+        PubSub& operator=(const PubSub&) = delete;
+        PubSub(PubSub&&) = delete;
+        PubSub& operator=(PubSub&&) = delete;
         void begin();
         void end();
         bool isIdle() const;

@@ -13,6 +13,7 @@
 #include "freertos/freeRTOS.h"
 #include "freertos/semphr.h"
 #include <sstream>
+#include <algorithm>
 #include "PubSub.hpp"
 #include "esp_log.h"
 
@@ -203,12 +204,9 @@ namespace pub_sub {
     }
 
     bool PubSub::doesCallbackExist(const SubscriberMap& subscriberMap, const SubscriberHandle subscriber) {
-        for (const auto& existingSubscriber : subscriberMap.subscribers) {
-            if (existingSubscriber == subscriber) {
-                return true;
-            }
-        }
-        return false;
+        return std::ranges::any_of(subscriberMap.subscribers, [subscriber](const auto& existingSubscriber) {
+            return existingSubscriber == subscriber;
+        });
     }
 
     void PubSub::eventLoop(const std::shared_ptr<PubSub>& sharedPubSub) { 

@@ -85,6 +85,7 @@
         "typeinfo": "cpp",
         "fstream": "cpp",
         "complex": "cpp",
-        "netfwd": "cpp"
+        "netfwd": "cpp",
+        "ranges": "cpp"
     }
 }

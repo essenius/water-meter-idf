@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdio>
 #include <mutex>
 
 extern std::mutex logMutex; // in esp_log.cpp

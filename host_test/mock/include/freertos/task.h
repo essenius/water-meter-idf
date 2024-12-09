@@ -29,7 +29,7 @@ inline BaseType_t xTaskCreate(const TaskFunction_t& task, const char* name, int,
         return pdFAIL;
     }
     auto tcb = std::make_shared<TaskControlBlock>();
-    tcb->thread = std::thread([task, param, tcb]() {
+    tcb->thread = std::thread([task, param] {
         task(param);
         ESP_LOGI(kTaskTag, "Task terminated");
     });

@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <queue>
-#include <functional>
 #include <cstdio>
 #include <memory>
 #include <cstring>
