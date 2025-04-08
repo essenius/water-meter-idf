@@ -5,6 +5,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#undef DEFINE_TEST_CASE
 #ifdef ESP_PLATFORM
 #define DEFINE_TEST_CASE(test_name) \
     TEST_CASE(#test_name, "[i2c_bus]") 
@@ -17,7 +18,7 @@ namespace i2c {
 
     constexpr const char* kI2cTag = "TestI2cBus";
 
-    DEFINE_TEST_CASE(is_present) {
+    DEFINE_TEST_CASE(i2c_is_present) {
         // make sure an HMC sensor is on the bus when running this test
         i2c::I2cBus i2cBus;
         i2cBus.setAddress(0x00);
@@ -29,7 +30,7 @@ namespace i2c {
         ESP_LOGI("test", "Device 0x1e is present");
     }
 
-    DEFINE_TEST_CASE(read_write_register) {
+    DEFINE_TEST_CASE(i2c_read_write_register) {
         // make sure an HMC sensor is on the bus when running this test
         i2c::I2cBus i2cBus;
         i2cBus.setAddress(0x1e);
@@ -43,7 +44,7 @@ namespace i2c {
 
     }
 
-    DEFINE_TEST_CASE(hmc_read) {
+    DEFINE_TEST_CASE(i2c_hmc_read) {
         // make sure an HMC sensor is on the bus when running this test
         i2c::I2cBus i2cBus;
         i2cBus.setAddress(0x1e);

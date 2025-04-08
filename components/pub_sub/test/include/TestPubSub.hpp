@@ -1,6 +1,5 @@
 #pragma once
 
-
 #ifdef ESP_PLATFORM
 #define DEFINE_TEST_CASE(test_name) \
     TEST_CASE(#test_name, "[magneto_sensor]") 
@@ -9,14 +8,14 @@
     void test_##test_name()
 
     namespace pub_sub_test {
-        void test_all_payload_types();
-        void test_multiple_subscribers();
+        void test_pubsub_all_payload_types();
+        void test_pubsub_multiple_subscribers();
 
         inline void run_tests() {
-            RUN_TEST(test_all_payload_types);
+            RUN_TEST(test_pubsub_all_payload_types);
 
             // This test crashes in host_test (not in ESP32) and is disabled for now
-            RUN_TEST(test_multiple_subscribers);
+            RUN_TEST(test_pubsub_multiple_subscribers);
         }
     }
 #endif

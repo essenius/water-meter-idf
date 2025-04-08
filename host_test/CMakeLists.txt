@@ -117,3 +117,4 @@ add_custom_target(copy_test_data ALL DEPENDS ${PROJECT_NAME})
 #  cd build
 #  cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug ..
 #  mingw32-make.exe
+# Run the test executable from a separate console window

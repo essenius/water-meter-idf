@@ -31,7 +31,7 @@ namespace pub_sub_test {
     
     //std::atomic<bool> terminateEventLoop(false);
 
-    DEFINE_TEST_CASE(all_payload_types) {
+    DEFINE_TEST_CASE(pubsub_all_payload_types) {
         {
         const char* kTestTag = "AllPayloadTypes";
         auto pubsub = PubSub::create();
@@ -85,7 +85,7 @@ namespace pub_sub_test {
         }
     }
 
-    DEFINE_TEST_CASE(multiple_subscribers) {
+    DEFINE_TEST_CASE(pubsub_multiple_subscribers) {
         {
         constexpr const char* kTestTag = "MultipleSubscribers";
         auto pubsub = PubSub::create();

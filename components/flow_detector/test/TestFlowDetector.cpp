@@ -66,8 +66,7 @@ namespace flow_detector_test {
             flowDetector.begin(noiseLimit);
             ESP_LOGI("flowTestWithFile", "Reference count after begin: %ld", pubsub->getReferenceCount());
             IntCoordinate measurement{};
-            char cwd[PATH_MAX];
-            if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            if (char cwd[PATH_MAX]; getcwd(cwd, sizeof(cwd)) != nullptr) {
                 printf("Current working dir: %s\n", cwd);
             } else {
                 perror("getcwd() error");
@@ -130,19 +129,23 @@ namespace flow_detector_test {
     }
 
     DEFINE_TEST_CASE(memory) {
+        // Don't run this test on the host -- it isn't reliable there 
         constexpr int Tests = 30;
         long long memory[Tests];
         for (auto i = 0; i < Tests; i++) {
             ExpectedResult expectedResult = { 1, 59, 0 };
             flowTestWithFile("60cycles.txt", expectedResult);
             memory[i] = getMemoryUsage();
+            printf("Memory usage [%d]: %lld\n", i, memory[i]);
         }
         int memoryDifferenceCount = 0;
         for (auto i = 1; i < Tests; i++) {
             const auto difference = memory[i] - memory[i - 1];
             if (difference != 0) memoryDifferenceCount++;
+            ESP_LOGI("memory","Memory difference %d: %lld\n", i, difference);
         }
-        TEST_ASSERT_TRUE_MESSAGE(memoryDifferenceCount < Tests / 10, "Less than 10% differences in memory: " + memoryDifferenceCount);
+        printf("Memory usage: %lld\n", memory[0]);
+        TEST_ASSERT_TRUE_MESSAGE(memoryDifferenceCount < Tests / 10, "Less than 10%% differences in memory: " + memoryDifferenceCount);
     }
 #endif
 
