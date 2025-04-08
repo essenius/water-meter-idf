@@ -14,7 +14,7 @@
     "idf.pythonBinPathWin": "${env:USERPROFILE}/.espressif/python_env/idf5.3_py3.11_env/Scripts/python.exe",
     "idf.toolsPathWin": "${env:USERPROFILE}/.espressif",
     "idf.flashType": "UART",
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\test\\build\\compile_commands.json",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\host_test\\build\\compile_commands.json",
     "files.associations": {
         "variant": "cpp",
         "array": "cpp",

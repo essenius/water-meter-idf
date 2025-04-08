@@ -1,4 +1,4 @@
-    cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 
 message(STATUS "CMAKE_SOURCE_DIR=" ${CMAKE_SOURCE_DIR})
 message(STATUS "CMAKE_BINARY_DIR=" ${CMAKE_BINARY_DIR})

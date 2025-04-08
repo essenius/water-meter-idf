@@ -47,7 +47,8 @@ secrets.*
 *.key
 *.crt
 
-vscode/**/*
+.vscode/**/*
+.vs/**/*
 
 # Include specific files
 !.vscode/settings.json
